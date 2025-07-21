@@ -44,7 +44,7 @@ jobs:
             --multi-thread-streams=16 \
             --multi-thread-cutoff=64M \
             --drive-chunk-size=128M \
-            --onedrive-chunk-size=128M \
+            --onedrive-chunk-size=160M \
             --retries=3 \
             --retries-sleep=10s \
             --progress \
