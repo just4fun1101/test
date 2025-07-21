@@ -1,4 +1,4 @@
-name: pikpak-macos-homebrew
+name: pikpak-macos
 
 on:
   workflow_dispatch:
@@ -14,21 +14,17 @@ on:
 
 jobs:
   transfer-macos:
-    runs-on: macos-latest
+    runs-on: macos-latest   # macOS 14 (Sonoma) Runner
 
     steps:
       - name: Checkout 代码
         uses: actions/checkout@v3
 
-      - name: 安装 rclone（Homebrew）
-        run: |
-          brew update
-          brew install rclone
-
-      - name: 写入 rclone 配置（纯文本）
-        run: |
-          mkdir -p ~/.config/rclone
-          echo "${{ secrets.RCLONE_CONFIG }}" > ~/.config/rclone/rclone.conf
+      - name: 安装并加载 rclone（纯文本 config）
+        uses: AnimMouse/setup-rclone@v1
+        with:
+          rclone_config: ${{ secrets.RCLONE_CONFIG }}  # 纯文本内容
+          disable_base64: true                        # 告诉动作：别解码
 
       - name: 高速拷贝 `${{ github.event.inputs.src_path }}` ➜ `od:${{ github.event.inputs.dst_path }}`
         run: |
