@@ -1,57 +1,77 @@
-name: pikpak-linux测试
+name: pikpak-linux
 
 on:
   workflow_dispatch:
     inputs:
       src_path:
-        description: '源目录，相对于 new: Remote，比如：myFolder/ （注意带斜杠）'
+        description: 'WebDAV 里的源目录，例如：/myFolder/（注意带斜杠）'
         required: true
         default: ''
       dst_path:
-        description: '目标目录，相对于 od: Remote，比如：backup/ （注意带斜杠）'
+        description: '目标目录，相对于 od: Remote，例如：backup/（注意带斜杠）'
         required: true
         default: ''
 
 jobs:
   transfer:
     runs-on: ubuntu-latest
+
     steps:
-      # 1. 检出代码
+      # 1. 取代码（可选，用来放脚本）
       - name: Checkout 代码
         uses: actions/checkout@v3
 
-      # 2. 设置 Python 环境
-      - name: 设置 Python 3.x
-        uses: actions/setup-python@v4
+      # 2. 🆕  安装 Python & WebDAV 客户端
+      - name: 设置 Python 并安装 webdav-client
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
-
-      # 3. 安装 WebDAV 客户端
-      - name: 安装 webdavclient3
+          python-version: '3.12'
+      - name: pip install webdav-client
         run: pip install webdavclient3
 
-      # 4. 从 WebDAV 下载到本地 ./src
-      - name: 从 WebDAV 下载到本地
-        # workflow_dispatch inputs 会自动写入环境变量 INPUT_SRC_PATH
-        run: python download_webdav.py "${{ github.event.inputs.src_path }}"
+      # 3. 🆕  从 WebDAV 下载到工作空间
+      - name: 下载 WebDAV 源文件
         env:
-          WEBDAV_HOSTNAME: ${{ secrets.WEBDAV_HOSTNAME }}
-          WEBDAV_USERNAME:  ${{ secrets.WEBDAV_USERNAME }}
-          WEBDAV_PASSWORD:  ${{ secrets.WEBDAV_PASSWORD }}
+          WEBDAV_HOSTNAME: ${{ secrets.WEBDAV_HOSTNAME }}   # 例如 https://dav.example.com
+          WEBDAV_USERNAME: ${{ secrets.WEBDAV_USERNAME }}
+          WEBDAV_PASSWORD: ${{ secrets.WEBDAV_PASSWORD }}
+          SRC_PATH:        ${{ github.event.inputs.src_path }}
+        run: |
+          python <<'PY'
+          import os, pathlib, sys
+          from webdav3.client import Client
 
-      # 5. 安装并加载 rclone（纯文本 config）
+          opts = {
+              'webdav_hostname': os.getenv('WEBDAV_HOSTNAME'),
+              'webdav_login':    os.getenv('WEBDAV_USERNAME'),
+              'webdav_password': os.getenv('WEBDAV_PASSWORD'),
+          }
+          client = Client(opts)
+
+          remote = os.getenv('SRC_PATH')
+          # 统一以 / 结尾，便于递归
+          if not remote.endswith('/'):
+              remote += '/'
+          local = 'webdav_download'
+          pathlib.Path(local).mkdir(exist_ok=True)
+          print(f"⬇️  download {remote}  ->  {local}/")
+          client.download_sync(remote_path=remote, local_path=local)
+          PY
+          echo "✅ WebDAV 下载完成"
+
+      # 4. 安装 rclone（仍用纯文本 config）
       - name: 安装并加载 Rclone
         uses: AnimMouse/setup-rclone@v1
         with:
           rclone_config: ${{ secrets.RCLONE_CONFIG }}
           disable_base64: true
 
-      # 6. 用 rclone 把本地 ./src 上传到 od:${{ dst_path }}
-      - name: 高速拷贝 本地 ./src 到 od:${{ github.event.inputs.dst_path }}
+      # 5. 把本地 webdav_download/* 传到 OneDrive 远端
+      - name: 高速拷贝到 od:${{ github.event.inputs.dst_path }}
         run: |
-          SRC="./src/"
+          SRC="webdav_download/"
           DST="od:${{ github.event.inputs.dst_path }}"
-          echo "📁 本地源目录 = $SRC"
+          echo "📁 源目录 = $SRC"
           echo "📁 目标目录 = $DST"
           rclone copy "$SRC" "$DST" \
             --ignore-existing \
