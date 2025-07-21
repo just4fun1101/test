@@ -1,30 +1,51 @@
-name: Rclone Multi‑Remote Transfer
+name: 高速rclone-linux
 
-# 只在 Actions 页面手动点 “Run workflow” 时触发
 on:
   workflow_dispatch:
+    inputs:
+      src_path:
+        description: '源目录，相对于 new: Remote，比如：myFolder/ （注意带斜杠）'
+        required: true
+        default: ''
+      dst_path:
+        description: '目标目录，相对于 od: Remote，比如：backup/ （注意带斜杠）'
+        required: true
+        default: ''
 
 jobs:
   transfer:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout 代码
         uses: actions/checkout@v3
 
-      - name: Setup Rclone (plain‑text config)
+      - name: 安装并加载 Rclone（纯文本 config）
         uses: AnimMouse/setup-rclone@v1
         with:
           rclone_config: ${{ secrets.RCLONE_CONFIG }}
           disable_base64: true
+        # 如果你的 rclone.conf 是加密的，取消下面这两行注释使用：
+        # env:
+        #   RCLONE_CONFIG_PASS: ${{ secrets.RCLONE_CONFIG_PASS }}
 
-      - name: Transfer files between drives (多线程)
+      - name: 高速拷贝 `${{ github.event.inputs.src_path }}` 到 `od:${{ github.event.inputs.dst_path }}`
         run: |
+          echo "📁 源目录 = new:${{ github.event.inputs.src_path }}"
+          echo "📁 目标目录 = od:${{ github.event.inputs.dst_path }}"
           rclone copy \
-            new:/t/ \
-            od: \
-            --transfers=16 \
-            --checkers=16 \
-            --multi-thread-streams=4 \
-            --multi-thread-cutoff=10M \
-            --verbose
+            "new:${{ github.event.inputs.src_path }}" \
+            "od:${{ github.event.inputs.dst_path }}" \
+            --transfers=32 \
+            --checkers=32 \
+            --fast-list \
+            --max-backlog=999999 \
+            --buffer-size=1G \
+            --multi-thread-streams=16 \
+            --multi-thread-cutoff=64M \
+            --drive-chunk-size=128M \
+            --onedrive-chunk-size=128M \
+            --retries=3 \
+            --retries-sleep=10s \
+            --progress \
+            --stats=30s
