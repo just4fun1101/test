@@ -34,7 +34,7 @@ jobs:
           rclone copy \
             "new:${SRC}" \
             "od:${SRC}" \
-            --transfers=32 \
+            --transfers=12 \
             --checkers=32 \
             --fast-list \
             --multi-thread-streams=8 \
