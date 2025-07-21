@@ -1,4 +1,4 @@
-name: pikpak-macos
+name: pikpak-macos-setup-rclone
 
 on:
   workflow_dispatch:
@@ -23,8 +23,26 @@ jobs:
       - name: 安装并加载 rclone（纯文本 config）
         uses: AnimMouse/setup-rclone@v1
         with:
-          rclone_config: ${{ secrets.RCLONE_CONFIG }}  # 纯文本内容
-          disable_base64: true                        # 告诉动作：别解码
+          rclone_config: ${{ secrets.RCLONE_CONFIG }}  # 直接粘贴纯文本 rclone.conf
+          disable_base64: true
+
+      # =========== 释放磁盘空间（可按需增删） ===========
+      - name: 释放磁盘空间
+        shell: bash
+        run: |
+          echo "🧹 Cleaning up to free disk space..."
+          # .NET SDK（~6 GB）
+          sudo rm -rf /usr/local/share/dotnet || true
+          # Android SDK / Cmdline tools（~5 GB）
+          sudo rm -rf "$(brew --prefix)/share/android-commandlinetools" || true
+          sudo rm -rf /usr/local/lib/android || true
+          # Haskell / GHC（~1 GB）
+          sudo rm -rf /opt/ghc || true
+          # CodeQL & 旧版 Xcode（若不用编译，可再删 ~8‑10 GB）
+          sudo rm -rf /usr/local/lib/codeql || true
+          sudo rm -rf /Applications/Xcode*.app || true
+          # 查看剩余空间
+          df -h /
 
       - name: 高速拷贝 `${{ github.event.inputs.src_path }}` ➜ `od:${{ github.event.inputs.dst_path }}`
         run: |
@@ -32,10 +50,6 @@ jobs:
           DST="od:${{ github.event.inputs.dst_path }}"
           echo "📁 源目录 = $SRC"
           echo "📁 目标目录 = $DST"
-
-          # 可选：释放空间
-          sudo rm -rf /usr/local/share/dotnet || true
-          sudo rm -rf "$(brew --prefix)/share/android-commandlinetools" || true
 
           rclone copy "$SRC" "$DST" \
             --transfers=64 \
