@@ -36,7 +36,7 @@ jobs:
             --multi-thread-cutoff=16M \
             --buffer-size=1G \
             --drive-chunk-size=256M \
-            --onedrive-chunk-size=64M \
+            --onedrive-chunk-size=60M \
             --progress \
             --stats=1s
         # 如果你的 rclone.conf 是加密的，取消下面这两行注释使用：
