@@ -3,50 +3,77 @@
 import os, sys, urllib3
 from webdav3.client import Client
 
-# Suppress HTTPS warnings
+# 1. Suppress HTTPS warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# Read WebDAV config from environment
-opts = {
-    'webdav_hostname': os.environ['WEBDAV_HOSTNAME'],
-    'webdav_login':    os.environ['WEBDAV_USERNAME'],
-    'webdav_password': os.environ['WEBDAV_PASSWORD'],
-    'webdav_root':     os.environ.get('WEBDAV_ROOT', '/')
-}
+# 2. Read WebDAV configuration from environment
+hostname = os.environ['WEBDAV_HOSTNAME']
+username = os.environ['WEBDAV_USERNAME']
+password = os.environ['WEBDAV_PASSWORD']
+# Optional root path on server (e.g., '/remote.php/webdav')
+root = os.environ.get('WEBDAV_ROOT', '').rstrip('/')
 
+opts = {
+    'webdav_hostname': hostname,
+    'webdav_login':    username,
+    'webdav_password': password
+}
 client = Client(opts)
-client.verify = False  # disable cert verification if self-signed
+client.verify = False  # Disable cert verification if self-signed
 
 
 def safe_list(path: str):
-    """Try listing a path with or without trailing slash."""
+    """
+    Try to list a remote directory using several candidate paths.
+    Returns the first non-empty list of items.
+    """
+    # Build full remote prefix
     p = path.strip('/')
-    for candidate in (p, p + '/'):
+    if root:
+        base = root.lstrip('/')  # no leading slash for client
+        full = f"{base}/{p}" if p else base
+    else:
+        full = p
+
+    # Generate variants
+    variants = []
+    if full == '':
+        variants = ['', '/']
+    else:
+        variants = [full, full+'/', '/'+full, '/'+full+'/']
+
+    for cand in variants:
         try:
-            return client.list(candidate)
+            items = client.list(cand)
+            if items:
+                print(f"[INFO] 列表成功: '{cand}' → {len(items)} items")
+                return items
         except Exception:
-            continue
-    print(f"[WARN] 列出目录失败: {path!r}")
+            pass
+    print(f"[WARN] 列出目录失败: 输入 '{path}', 尝试 {variants}")
     return []
 
 
-def download_dir(remote_path: str, local_path: str):
-    # Normalize remote_path
-    r = remote_path.strip('/')
-    print(f"\n👉 Downloading remote '{r or '/'}' to local '{local_path}/'\n")
-    os.makedirs(local_path, exist_ok=True)
-
-    items = safe_list(r)
-    if r and not items:
-        print(f"[ERROR] 远程目录 '{r}' 不存在或不可访问，跳过。\n")
+def download_dir(path: str, local_path: str):
+    # List items in remote path
+    items = safe_list(path)
+    if not items:
+        print(f"[ERROR] 远程目录 '{path}' 不可访问，跳过下载")
         return
 
+    # Ensure local directory
+    os.makedirs(local_path, exist_ok=True)
+
     for entry in items:
+        if entry in ('.', '..'):
+            continue
+        is_dir = entry.endswith('/')
         name = entry.rstrip('/')
-        sub_remote = f"{r}/{name}" if r else name
+        # Build remote sub-path
+        sub_remote = f"{path.strip('/')}/{name}" if path.strip('/') else name
         sub_local = os.path.join(local_path, name)
-        # Detect directory by trailing slash in entry
-        if entry.endswith('/'):
+
+        if is_dir:
             download_dir(sub_remote, sub_local)
         else:
             try:
@@ -62,7 +89,7 @@ if __name__ == '__main__':
         print("Usage: python download_webdav.py <remote_path>")
         sys.exit(1)
 
-    # Debug root listing
+    # Debug: list root items
     print("=== WebDAV 根目录列表 ===")
     for e in safe_list(''):
         print(" ", e)
