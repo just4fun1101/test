@@ -49,4 +49,4 @@ jobs:
             --retries-sleep=50s \
             --ignore-errors \
             --progress \
-            --stats=10s
+            --stats=1s
