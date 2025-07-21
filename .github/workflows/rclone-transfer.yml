@@ -1,4 +1,4 @@
-name: 高速 Rclone 文件搬运
+name: 高速 Rclone-linux
 
 on:
   workflow_dispatch:
@@ -32,21 +32,21 @@ jobs:
           DST="od:${{ github.event.inputs.dst_path }}"
           echo "📁 源目录 = $SRC"
           echo "📁 目标目录 = $DST"
-          rclone copy \
-            "$SRC" "$DST" \
-            --ignore-existing           \ # 如果目标已存在同名文件，直接跳过
-            --transfers=24              \
-            --checkers=32               \
-            --fast-list                 \
-            --buffer-size=1G            \
-            --multi-thread-streams=16   \
-            --multi-thread-cutoff=64M   \
-            --drive-chunk-size=128M     \
-            --onedrive-chunk-size=160M  \
-            --timeout=20s               \
-            --low-level-retries=5       \
-            --retries=10                \
-            --retries-sleep=1m          \
-            --ignore-errors             \
-            --progress                  \
+          # 如果目标已存在同名文件，直接跳过
+          rclone copy "$SRC" "$DST" \
+            --ignore-existing \
+            --transfers=24 \
+            --checkers=32 \
+            --fast-list \
+            --buffer-size=1G \
+            --multi-thread-streams=16 \
+            --multi-thread-cutoff=64M \
+            --drive-chunk-size=128M \
+            --onedrive-chunk-size=160M \
+            --timeout=20s \
+            --low-level-retries=5 \
+            --retries=10 \
+            --retries-sleep=1m \
+            --ignore-errors \
+            --progress \
             --stats=10s
