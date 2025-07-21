@@ -1,4 +1,4 @@
-name: 高速 Rclone 文件搬运（macOS 版）
+name: pikpak-macos
 
 on:
   workflow_dispatch:
@@ -14,38 +14,48 @@ on:
 
 jobs:
   transfer-macos:
-    runs-on: macos-latest
+    runs-on: macos-latest   # ⬅️ 改为 macOS Runner（目前默认为 macOS 14 Sonoma）
 
     steps:
       - name: Checkout 代码
         uses: actions/checkout@v3
 
-      - name: 安装并加载 Rclone（纯文本 INI config）
-        uses: AnimMouse/setup-rclone@v1
-        with:
-          rclone_config: ${{ secrets.RCLONE_CONFIG }}
-          disable_base64: true
-
-      - name: 高速拷贝 `${{ github.event.inputs.src_path }}` 到 `od:${{ github.event.inputs.dst_path }}`
+      # 如你希望继续使用 AnimMouse/setup-rclone（跨平台），
+      # 可以保留原动作；这里示范用 Homebrew 安装，Mac 用户更直观
+      - name: 安装 rclone（Homebrew）
         run: |
-          SRC="j:${{ github.event.inputs.src_path }}"
+          brew update
+          brew install rclone
+
+      - name: 写入 rclone 配置
+        run: |
+          mkdir -p ~/.config/rclone
+          echo "${{ secrets.RCLONE_CONFIG }}" > ~/.config/rclone/rclone.conf
+          # 如果 rclone.conf 加密，请取消下行注释并把密钥存在 Secrets ➜ RCLONE_CONFIG_PASS
+          # echo "${{ secrets.RCLONE_CONFIG_PASS }}" > ~/.config/rclone/rclone.conf.pass
+
+      - name: 高速拷贝 `${{ github.event.inputs.src_path }}` ➜ `od:${{ github.event.inputs.dst_path }}`
+        run: |
+          SRC="pik:${{ github.event.inputs.src_path }}"
           DST="od:${{ github.event.inputs.dst_path }}"
           echo "📁 源目录 = $SRC"
           echo "📁 目标目录 = $DST"
 
+          # Mac Runner 默认磁盘空间 ~14 GB，可按需清理下列大文件获更多缓存空间
+          sudo rm -rf /usr/local/share/dotnet || true
+          sudo rm -rf "$(brew --prefix)/share/android-commandlinetools" || true
+
           rclone copy "$SRC" "$DST" \
-            --ignore-existing \
-            --transfers=24 \
-            --checkers=32 \
+            --transfers=64 \
+            --checkers=64 \
             --fast-list \
+            --max-backlog=999999 \
             --buffer-size=1G \
             --multi-thread-streams=16 \
             --multi-thread-cutoff=64M \
             --drive-chunk-size=128M \
             --onedrive-chunk-size=160M \
-            --timeout=20s \
-            --low-level-retries=100 \
-            --retries=100 \
-            --retries-sleep=5m \
+            --retries=3 \
+            --retries-sleep=10s \
             --progress \
-            --stats=30s
+            --stats=1s
