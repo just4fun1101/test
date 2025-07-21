@@ -25,28 +25,27 @@ jobs:
         with:
           rclone_config: ${{ secrets.RCLONE_CONFIG }}
           disable_base64: true
+        # 如果你的 rclone.conf 是加密的，取消下面这两行注释使用：
+        # env:
+        #   RCLONE_CONFIG_PASS: ${{ secrets.RCLONE_CONFIG_PASS }}
 
       - name: 高速拷贝 `${{ github.event.inputs.src_path }}` 到 `od:${{ github.event.inputs.dst_path }}`
         run: |
-          SRC="new:${{ github.event.inputs.src_path }}"
-          DST="od:${{ github.event.inputs.dst_path }}"
-          echo "📁 源目录 = $SRC"
-          echo "📁 目标目录 = $DST"
-          # 如果目标已存在同名文件，直接跳过
-          rclone copy "$SRC" "$DST" \
-            --ignore-existing \
-            --transfers=24 \
-            --checkers=32 \
+          echo "📁 源目录 = new:${{ github.event.inputs.src_path }}"
+          echo "📁 目标目录 = od:${{ github.event.inputs.dst_path }}"
+          rclone copy \
+            "new:${{ github.event.inputs.src_path }}" \
+            "od:${{ github.event.inputs.dst_path }}" \
+            --transfers=64 \
+            --checkers=64 \
             --fast-list \
+            --max-backlog=999999 \
             --buffer-size=1G \
             --multi-thread-streams=16 \
             --multi-thread-cutoff=64M \
             --drive-chunk-size=128M \
             --onedrive-chunk-size=160M \
-            --timeout=20s \
-            --low-level-retries=5 \
-            --retries=10 \
-            --retries-sleep=50s \
-            --ignore-errors \
+            --retries=3 \
+            --retries-sleep=10s \
             --progress \
             --stats=1s
