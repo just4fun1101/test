@@ -22,7 +22,7 @@ jobs:
           rclone_config: ${{ secrets.RCLONE_CONFIG }}
           disable_base64: true
 
-      - name: 高速拷贝 `${{ github.event.inputs.path }}` 到 od: 根目录
+      - name: "高速拷贝 `${{ github.event.inputs.path }}` 到 od: 根目录"
         run: |
           echo "📁 源目录 = new:${{ github.event.inputs.path }}"
           echo "📁 目标目录 = od:"
@@ -39,3 +39,6 @@ jobs:
             --onedrive-chunk-size=64M \
             --progress \
             --stats=1s
+        # 如果你的 rclone.conf 是加密的，取消下面这两行注释使用：
+        # env:
+        #   RCLONE_CONFIG_PASS: ${{ secrets.RCLONE_CONFIG_PASS }}
