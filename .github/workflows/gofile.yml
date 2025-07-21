@@ -15,33 +15,29 @@ jobs:
     runs-on: macos-latest
 
     steps:
-      - name: Checkout 代码
+      - name: "Checkout 代码"
         uses: actions/checkout@v3
 
-      - name: 克隆并运行 gofile-downloader
+      - name: "克隆并运行 gofile-downloader"
         run: |
           git clone https://github.com/ltsdw/gofile-downloader.git
           cd gofile-downloader
 
-          # 用 venv 安装依赖，避开系统受管环境限制
           python3 -m venv venv
           source venv/bin/activate
           pip install --upgrade pip
           pip install -r requirements.txt
 
-          # 执行下载；脚本会在 cwd 下创建 <CONTENT_ID> 目录并把文件放进去
           python3 gofile-downloader.py "${{ github.event.inputs.gofile_url }}"
-        # gofile-downloader 默认在当前工作目录（即 gofile-downloader/）下创建 <CONTENT_ID> 文件夹:contentReference[oaicite:1]{index=1}
 
-      - name: 安装并加载 Rclone（纯文本 config）
+      - name: "安装并加载 Rclone（纯文本 config）"
         uses: AnimMouse/setup-rclone@v1
         with:
           rclone_config: ${{ secrets.RCLONE_CONFIG }}
           disable_base64: true
 
-      - name: 解析 CONTENT_ID 并上传到 od:
+      - name: "解析 CONTENT_ID 并上传到 od:"
         run: |
-          # 从 URL 提取最后一段作为内容 ID
           URL="${{ github.event.inputs.gofile_url }}"
           CONTENT_ID="${URL##*/}"
 
@@ -52,7 +48,6 @@ jobs:
           echo "📁 源目录 = $SRC_DIR"
           echo "📁 目标目录 = $DEST"
 
-          # 高并发、多线程分片上传
           rclone copy \
             "$SRC_DIR" \
             "$DEST" \
@@ -66,7 +61,6 @@ jobs:
             --onedrive-chunk-size=60M \
             --progress \
             --stats=1s
-        # 注意 OneDrive chunk size 必须是 320KiB 的整数倍:contentReference[oaicite:2]{index=2}
-        # 如有加密密码，请启用：
+        # 如有加密密码，请启用下面环境变量：
         # env:
         #   RCLONE_CONFIG_PASS: ${{ secrets.RCLONE_CONFIG_PASS }}
