@@ -46,7 +46,7 @@ jobs:
             --timeout=20s \
             --low-level-retries=5 \
             --retries=10 \
-            --retries-sleep=1m \
+            --retries-sleep=50s \
             --ignore-errors \
             --progress \
             --stats=10s
