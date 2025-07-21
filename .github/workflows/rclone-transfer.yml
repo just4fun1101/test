@@ -1,4 +1,4 @@
-name: 高速 Rclone-linux
+name: pikpak-linux
 
 on:
   workflow_dispatch:
@@ -28,7 +28,7 @@ jobs:
 
       - name: 高速拷贝 `${{ github.event.inputs.src_path }}` 到 `od:${{ github.event.inputs.dst_path }}`
         run: |
-          SRC="new:${{ github.event.inputs.src_path }}"
+          SRC="j:${{ github.event.inputs.src_path }}"
           DST="od:${{ github.event.inputs.dst_path }}"
           echo "📁 源目录 = $SRC"
           echo "📁 目标目录 = $DST"
