@@ -34,7 +34,7 @@ jobs:
           echo "📁 源目录 = pik:${{ github.event.inputs.src_path }}"
           echo "📁 目标目录 = od:${{ github.event.inputs.dst_path }}"
           rclone copy \
-            "new:${{ github.event.inputs.src_path }}" \
+            "pik:${{ github.event.inputs.src_path }}" \
             "od:${{ github.event.inputs.dst_path }}" \
             --transfers=64 \
             --checkers=64 \
