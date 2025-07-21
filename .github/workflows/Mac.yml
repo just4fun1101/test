@@ -23,14 +23,14 @@ jobs:
 
       - name: "高速拷贝并创建同名子文件夹 `${{ github.event.inputs.path }}`"
         run: |
-          # 取输入，去除前后斜杠，得到规范化路径
+          # 取输入，去除前后斜杠
           RAW="${{ github.event.inputs.path }}"
-          SRC="${RAW#/}"       # 去掉前导斜杠（如果有）
-          SRC="${SRC%/}"       # 去掉尾部斜杠（如果有）
+          SRC="${RAW#/}"
+          SRC="${SRC%/}"
           echo "📁 源目录 = new:${SRC}"
           echo "📁 目标目录 = od:${SRC}"
-          
-          # 把 new:SRC 复制到 od:SRC，od:SRC 不存在时会自动创建
+
+          # OneDrive chunk size 必须是 320KiB 的整数倍，所以下面写在命令里而不加行尾注释
           rclone copy \
             "new:${SRC}" \
             "od:${SRC}" \
@@ -41,7 +41,9 @@ jobs:
             --multi-thread-cutoff=16M \
             --buffer-size=1G \
             --drive-chunk-size=256M \
-            --onedrive-chunk-size=60M \   # 必须是 320KiB 的整数倍 :contentReference[oaicite:0]{index=0}
+            --onedrive-chunk-size=60M \
             --progress \
             --stats=1s
-      
+        # 如果你的 rclone.conf 有加密密码，再启用下面两行：
+        # env:
+        #   RCLONE_CONFIG_PASS: ${{ secrets.RCLONE_CONFIG_PASS }}
