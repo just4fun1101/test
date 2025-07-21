@@ -20,15 +20,11 @@ jobs:
       - name: Checkout 代码
         uses: actions/checkout@v3
 
-      - name: 安装 rclone
-        run: |
-          brew install rclone
-
-      - name: 写入 rclone 配置
-        run: |
-          mkdir -p ~/.config/rclone
-          echo "${{ secrets.RCLONE_CONFIG }}" > ~/.config/rclone/rclone.conf
-          # 如果你的 config 加密过，写入 .conf.pass 并 export RCLONE_CONFIG_PASS
+      - name: 安装并加载 Rclone（纯文本 INI config）
+        uses: AnimMouse/setup-rclone@v1
+        with:
+          rclone_config: ${{ secrets.RCLONE_CONFIG }}
+          disable_base64: true
 
       - name: 高速拷贝 `${{ github.event.inputs.src_path }}` 到 `od:${{ github.event.inputs.dst_path }}`
         run: |
