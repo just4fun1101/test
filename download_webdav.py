@@ -1,70 +1,71 @@
-import os
-import sys
-import urllib3
+# download_webdav.py
+
+import os, sys, urllib3
 from webdav3.client import Client
 
-# 抑制 HTTPS 警告
+# Suppress HTTPS warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# 从环境变量读取 WebDAV 配置
+# Read WebDAV config from environment
 opts = {
     'webdav_hostname': os.environ['WEBDAV_HOSTNAME'],
     'webdav_login':    os.environ['WEBDAV_USERNAME'],
-    'webdav_password': os.environ['WEBDAV_PASSWORD']
+    'webdav_password': os.environ['WEBDAV_PASSWORD'],
+    'webdav_root':     os.environ.get('WEBDAV_ROOT', '/')
 }
 
 client = Client(opts)
-client.verify = False  # 如果服务器证书自签
+client.verify = False  # disable cert verification if self-signed
+
 
 def safe_list(path: str):
-    try:
-        return client.list(path)
-    except Exception as e:
-        print(f"[WARN] 列出 {path!r} 时出错：{e}")
-        return []
+    """Try listing a path with or without trailing slash."""
+    p = path.strip('/')
+    for candidate in (p, p + '/'):
+        try:
+            return client.list(candidate)
+        except Exception:
+            continue
+    print(f"[WARN] 列出目录失败: {path!r}")
+    return []
 
 
 def download_dir(remote_path: str, local_path: str):
-    # 规范化 remote_path，允许 '3' 或 '3/'，并转换为带尾斜杠的形式
-    rp = remote_path.lstrip('/')
-    if rp and not rp.endswith('/'):
-        rp = rp + '/'
-
-    print(f"\n👉 尝试下载远程目录: '{rp or '/'}' 到 本地目录: '{local_path}/'\n")
+    # Normalize remote_path
+    r = remote_path.strip('/')
+    print(f"\n👉 Downloading remote '{r or '/'}' to local '{local_path}/'\n")
     os.makedirs(local_path, exist_ok=True)
 
-    items = safe_list(rp)
-    # 如果指定了路径但没有列出内容，则认为路径不存在
-    if rp and not items:
-        print(f"[ERROR] 远程目录 `{rp}` 似乎不存在或不可访问，下载终止。\n")
+    items = safe_list(r)
+    if r and not items:
+        print(f"[ERROR] 远程目录 '{r}' 不存在或不可访问，跳过。\n")
         return
 
-    for name in items:
-        if name in ('.', '..'):
-            continue
-        sub_remote = rp + name
-        sub_local = os.path.join(local_path, name.rstrip('/'))
-        # 根据列表中目录项末尾是否有 '/' 判断类型
-        if name.endswith('/'):
+    for entry in items:
+        name = entry.rstrip('/')
+        sub_remote = f"{r}/{name}" if r else name
+        sub_local = os.path.join(local_path, name)
+        # Detect directory by trailing slash in entry
+        if entry.endswith('/'):
             download_dir(sub_remote, sub_local)
         else:
             try:
                 client.download(sub_remote, sub_local)
                 print(f"  ✔ 下载文件: {sub_remote} → {sub_local}")
             except Exception as e:
-                print(f"  [WARN] 下载 {sub_remote} 失败：{e}")
+                print(f"  [WARN] 下载失败 {sub_remote}: {e}")
 
 
 if __name__ == '__main__':
     src = os.environ.get('INPUT_SRC_PATH') or (sys.argv[1] if len(sys.argv) > 1 else '')
     if not src:
-        print("请传入 src_path，例如：python download_webdav.py '3/'")
+        print("Usage: python download_webdav.py <remote_path>")
         sys.exit(1)
 
-    # 打印根目录列表，便于调试
+    # Debug root listing
     print("=== WebDAV 根目录列表 ===")
-    for entry in safe_list(''):
-        print(" ", entry)
+    for e in safe_list(''):
+        print(" ", e)
     print("========================")
 
-    download_dir(src, './src')
+    download_dir(src, 'src')
