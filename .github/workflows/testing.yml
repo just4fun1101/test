@@ -1,0 +1,72 @@
+name: pikpak-linux测试
+
+on:
+  workflow_dispatch:
+    inputs:
+      src_path:
+        description: '源目录，相对于 new: Remote，比如：myFolder/ （注意带斜杠）'
+        required: true
+        default: ''
+      dst_path:
+        description: '目标目录，相对于 od: Remote，比如：backup/ （注意带斜杠）'
+        required: true
+        default: ''
+
+jobs:
+  transfer:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. 检出代码
+      - name: Checkout 代码
+        uses: actions/checkout@v3
+
+      # 2. 设置 Python 环境
+      - name: 设置 Python 3.x
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      # 3. 安装 WebDAV 客户端
+      - name: 安装 webdavclient3
+        run: pip install webdavclient3
+
+      # 4. 从 WebDAV 下载到本地 ./src
+      - name: 从 WebDAV 下载到本地
+        # workflow_dispatch inputs 会自动写入环境变量 INPUT_SRC_PATH
+        run: python download_webdav.py "${{ github.event.inputs.src_path }}"
+        env:
+          WEBDAV_HOSTNAME: ${{ secrets.WEBDAV_HOSTNAME }}
+          WEBDAV_USERNAME:  ${{ secrets.WEBDAV_USERNAME }}
+          WEBDAV_PASSWORD:  ${{ secrets.WEBDAV_PASSWORD }}
+
+      # 5. 安装并加载 rclone（纯文本 config）
+      - name: 安装并加载 Rclone
+        uses: AnimMouse/setup-rclone@v1
+        with:
+          rclone_config: ${{ secrets.RCLONE_CONFIG }}
+          disable_base64: true
+
+      # 6. 用 rclone 把本地 ./src 上传到 od:${{ dst_path }}
+      - name: 高速拷贝 本地 ./src 到 od:${{ github.event.inputs.dst_path }}
+        run: |
+          SRC="./src/"
+          DST="od:${{ github.event.inputs.dst_path }}"
+          echo "📁 本地源目录 = $SRC"
+          echo "📁 目标目录 = $DST"
+          rclone copy "$SRC" "$DST" \
+            --ignore-existing \
+            --transfers=24 \
+            --checkers=32 \
+            --fast-list \
+            --buffer-size=1G \
+            --multi-thread-streams=16 \
+            --multi-thread-cutoff=64M \
+            --drive-chunk-size=128M \
+            --onedrive-chunk-size=160M \
+            --timeout=20s \
+            --low-level-retries=5 \
+            --retries=10 \
+            --retries-sleep=50s \
+            --ignore-errors \
+            --progress \
+            --stats=10s
