@@ -20,26 +20,15 @@ jobs:
       - name: Checkout 代码
         uses: actions/checkout@v3
 
-      - name: 安装 Homebrew（若 runner 已自带可跳过）
-        run: |
-          # 如果 macOS runner 已包含 brew，可删除这步
-          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-          echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> $GITHUB_ENV
-          eval "$(/opt/homebrew/bin/brew shellenv)"
-
       - name: 安装 rclone
         run: |
           brew install rclone
 
       - name: 写入 rclone 配置
-        env:
-          RCLONE_CONF: ${{ secrets.RCLONE_CONFIG }}
         run: |
           mkdir -p ~/.config/rclone
-          echo "$RCLONE_CONF" > ~/.config/rclone/rclone.conf
-          # 如果你的 config 被加密，需要解密密码：
-          # echo "${{ secrets.RCLONE_CONFIG_PASS }}" > ~/.config/rclone/rclone.conf.pass
-          # export RCLONE_CONFIG_PASS="${{ secrets.RCLONE_CONFIG_PASS }}"
+          echo "${{ secrets.RCLONE_CONFIG }}" > ~/.config/rclone/rclone.conf
+          # 如果你的 config 加密过，写入 .conf.pass 并 export RCLONE_CONFIG_PASS
 
       - name: 高速拷贝 `${{ github.event.inputs.src_path }}` 到 `od:${{ github.event.inputs.dst_path }}`
         run: |
@@ -47,6 +36,7 @@ jobs:
           DST="od:${{ github.event.inputs.dst_path }}"
           echo "📁 源目录 = $SRC"
           echo "📁 目标目录 = $DST"
+
           rclone copy "$SRC" "$DST" \
             --ignore-existing \
             --transfers=24 \
@@ -58,9 +48,8 @@ jobs:
             --drive-chunk-size=128M \
             --onedrive-chunk-size=160M \
             --timeout=20s \
-            --low-level-retries=5 \
-            --retries=10 \
-            --retries-sleep=50s \
-            --ignore-errors \
+            --low-level-retries=100 \
+            --retries=100 \
+            --retries-sleep=5m \
             --progress \
             --stats=30s
