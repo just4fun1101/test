@@ -18,19 +18,20 @@ jobs:
       - name: Checkout 代码
         uses: actions/checkout@v3
 
-      - name: 克隆 BunkrDownloader 并安装依赖
+      - name: 下载并运行 BunkrDownloader
         run: |
+          # 克隆源码
           git clone https://github.com/Lysagxra/BunkrDownloader.git
           cd BunkrDownloader
-          python3 -m pip install --upgrade pip
+          
+          # 创建并激活虚拟环境，安装依赖
+          python3 -m venv venv
+          source venv/bin/activate
+          pip install --upgrade pip
           pip install -r requirements.txt
-        # BunkrDownloader 是一个 Python 脚本，用于并发下载 Bunkr 专辑或单个文件的媒体内容:contentReference[oaicite:0]{index=0}
-
-      - name: 执行 Bunkr 下载
-        working-directory: BunkrDownloader
-        run: |
+          
+          # 下载指定的 Bunkr URL（结果在 BunkrDownloader/Downloads/）
           python3 downloader.py "${{ github.event.inputs.bunkr_url }}" --disable-ui
-        # 下载结果存放在 BunkrDownloader/Downloads/ 目录下
 
       - name: 安装并加载 Rclone（纯文本 config）
         uses: AnimMouse/setup-rclone@v1
@@ -38,7 +39,7 @@ jobs:
           rclone_config: ${{ secrets.RCLONE_CONFIG }}
           disable_base64: true
 
-      - name: 上传 Downloads/ 到 od:${{ github.event.inputs.dest_dir }}
+      - name: "上传 Downloads/ 到 od:${{ github.event.inputs.dest_dir }}"
         run: |
           echo "📁 源目录 = BunkrDownloader/Downloads/"
           echo "📁 目标目录 = od:${{ github.event.inputs.dest_dir }}"
@@ -55,7 +56,6 @@ jobs:
             --onedrive-chunk-size=60M \
             --progress \
             --stats=1s
-        # 使用高并发与分片参数，全速上传到 OneDrive :contentReference[oaicite:1]{index=1}
-        # 如果 Rclone 配置文件有加密，取消下面两行注释启用密码解密：
+        # 若你的 config 有加密密码，再启用下面两行：
         # env:
         #   RCLONE_CONFIG_PASS: ${{ secrets.RCLONE_CONFIG_PASS }}
