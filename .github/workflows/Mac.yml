@@ -1,38 +1,34 @@
-name: pikpak-macos
+name: pikpak-macos-homebrew
 
 on:
   workflow_dispatch:
     inputs:
       src_path:
-        description: '源目录，相对于 new: Remote，比如：myFolder/ （注意带斜杠）'
+        description: '源目录，相对于 new: Remote，例如 myFolder/ （注意带斜杠）'
         required: true
         default: ''
       dst_path:
-        description: '目标目录，相对于 od: Remote，比如：backup/ （注意带斜杠）'
+        description: '目标目录，相对于 od: Remote，例如 backup/ （注意带斜杠）'
         required: true
         default: ''
 
 jobs:
   transfer-macos:
-    runs-on: macos-latest   # ⬅️ 改为 macOS Runner（目前默认为 macOS 14 Sonoma）
+    runs-on: macos-latest
 
     steps:
       - name: Checkout 代码
         uses: actions/checkout@v3
 
-      # 如你希望继续使用 AnimMouse/setup-rclone（跨平台），
-      # 可以保留原动作；这里示范用 Homebrew 安装，Mac 用户更直观
       - name: 安装 rclone（Homebrew）
         run: |
           brew update
           brew install rclone
 
-      - name: 写入 rclone 配置
+      - name: 写入 rclone 配置（纯文本）
         run: |
           mkdir -p ~/.config/rclone
           echo "${{ secrets.RCLONE_CONFIG }}" > ~/.config/rclone/rclone.conf
-          # 如果 rclone.conf 加密，请取消下行注释并把密钥存在 Secrets ➜ RCLONE_CONFIG_PASS
-          # echo "${{ secrets.RCLONE_CONFIG_PASS }}" > ~/.config/rclone/rclone.conf.pass
 
       - name: 高速拷贝 `${{ github.event.inputs.src_path }}` ➜ `od:${{ github.event.inputs.dst_path }}`
         run: |
@@ -41,7 +37,7 @@ jobs:
           echo "📁 源目录 = $SRC"
           echo "📁 目标目录 = $DST"
 
-          # Mac Runner 默认磁盘空间 ~14 GB，可按需清理下列大文件获更多缓存空间
+          # 可选：释放空间
           sudo rm -rf /usr/local/share/dotnet || true
           sudo rm -rf "$(brew --prefix)/share/android-commandlinetools" || true
 
