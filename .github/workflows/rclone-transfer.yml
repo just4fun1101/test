@@ -1,0 +1,30 @@
+name: Rclone Multi‑Remote Transfer
+
+# 只在 Actions 页面手动点 “Run workflow” 时触发
+on:
+  workflow_dispatch:
+
+jobs:
+  transfer:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Rclone (plain‑text config)
+        uses: AnimMouse/setup-rclone@v1
+        with:
+          rclone_config: ${{ secrets.RCLONE_CONFIG }}
+          disable_base64: true
+
+      - name: Transfer files between drives (多线程)
+        run: |
+          rclone copy \
+            new:/d/ \
+            od: \
+            --transfers=16 \
+            --checkers=16 \
+            --multi-thread-streams=4 \
+            --multi-thread-cutoff=10M \
+            --verbose
