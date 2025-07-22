@@ -7,7 +7,7 @@ on:
         description: '要下载的 gofile.io 链接，例如：https://gofile.io/d/CONTENTID'
         required: true
       dest_dir:
-        description: '上传到 od: 下的目标子目录（自动创建），例如：MyFolder'
+        description: '上传到 pik: 下的目标子目录（自动创建），例如：MyFolder'
         required: true
 
 jobs:
@@ -36,7 +36,7 @@ jobs:
           rclone_config: ${{ secrets.RCLONE_CONFIG }}
           disable_base64: true
 
-      - name: "解析 CONTENT_ID 并上传到 od:"
+      - name: "解析 CONTENT_ID 并上传到 pikpak:"
         run: |
           URL="${{ github.event.inputs.gofile_url }}"
           CONTENT_ID="${URL##*/}"
@@ -57,10 +57,5 @@ jobs:
             --multi-thread-streams=8 \
             --multi-thread-cutoff=16M \
             --buffer-size=1G \
-            --drive-chunk-size=256M \
-            --onedrive-chunk-size=60M \
             --progress \
             --stats=1s
-        # 如有加密密码，请启用下面环境变量：
-        # env:
-        #   RCLONE_CONFIG_PASS: ${{ secrets.RCLONE_CONFIG_PASS }}
