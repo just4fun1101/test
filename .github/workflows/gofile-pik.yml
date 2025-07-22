@@ -1,13 +1,10 @@
-name: GoFile 下载并上传到 pik
+name: GoFile 下载并上传到 pik‑music
 
 on:
   workflow_dispatch:
     inputs:
       gofile_url:
-        description: '要下载的 gofile.io 链接，例如：https://gofile.io/d/CONTENTID'
-        required: true
-      dest_dir:
-        description: '上传到 pik: 下的目标子目录（自动创建），例如：MyFolder'
+        description: 'GoFile 链接，例如：https://gofile.io/d/CONTENTID'
         required: true
 
 jobs:
@@ -15,10 +12,12 @@ jobs:
     runs-on: macos-latest
 
     steps:
-      - name: "Checkout 代码"
+      # 1. 拉取代码（如果需要用到仓库文件，保留即可）
+      - name: Checkout 代码
         uses: actions/checkout@v3
 
-      - name: "克隆并运行 gofile-downloader"
+      # 2. 下载 GoFile 资源
+      - name: 克隆并运行 gofile‑downloader
         run: |
           git clone https://github.com/ltsdw/gofile-downloader.git
           cd gofile-downloader
@@ -30,24 +29,30 @@ jobs:
 
           python3 gofile-downloader.py "${{ github.event.inputs.gofile_url }}"
 
-      - name: "安装并加载 Rclone（纯文本 config）"
+      # 3. 安装并加载 Rclone（纯文本 config）
+      - name: 安装并加载 Rclone
         uses: AnimMouse/setup-rclone@v1
         with:
           rclone_config: ${{ secrets.RCLONE_CONFIG }}
           disable_base64: true
 
-      - name: "解析 CONTENT_ID 并上传到 pikpak:"
+      # 4. 上传到 pik:music
+      - name: 上传到 pik:music
         run: |
+          # 提取 CONTENT_ID
           URL="${{ github.event.inputs.gofile_url }}"
           CONTENT_ID="${URL##*/}"
 
+          # 本地下载目录（gofile‑downloader 会以 CONTENT_ID 为目录名）
           SRC_DIR="gofile-downloader/${CONTENT_ID}/"
-          DEST_PARENT="${{ github.event.inputs.dest_dir }}"
-          DEST="pik:${DEST_PARENT}/${CONTENT_ID}"
+
+          # 固定远端目录
+          DEST="pik:music/${CONTENT_ID}"
 
           echo "📁 源目录 = $SRC_DIR"
           echo "📁 目标目录 = $DEST"
 
+          # 开始上传
           rclone copy \
             "$SRC_DIR" \
             "$DEST" \
