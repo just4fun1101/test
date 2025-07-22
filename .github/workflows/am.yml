@@ -1,93 +1,77 @@
-name: apple‑music-to-onedrive (macOS)
+name: apple‑music‑to‑onedrive
 
 on:
   workflow_dispatch:
     inputs:
       apple_urls:
-        description: 'Apple Music 链接（可填多条，用空格或换行分隔）'
+        description: 'Apple Music 链接（多条用空格/换行分隔）'
         required: true
-        default: ''
       dst_path:
-        description: '上传到 OneDrive 的目录（相对于 od: Remote，例如 music/ ）'
+        description: 'OneDrive 目标目录（相对于 od: Remote）'
         required: true
         default: 'music/'
 
 jobs:
-  download-and-upload:
-    runs-on: macos-latest   # macOS 14 (Sonoma) Runner
+  am2od:
+    runs-on: macos-latest
 
     env:
-      # 本地保存 cookies 的路径
       COOKIES_FILE: ${{ github.workspace }}/cookies.txt
-      # rclone Remote 名称（与 rclone.conf 中保持一致）
       ONEDRIVE_REMOTE: od
 
     steps:
-    # 1) 检出仓库（如需用到代码，可保留；纯跑任务也可删除）
-    - name: Checkout repo
-      uses: actions/checkout@v4
-
-    # 2) 写入 rclone 配置（纯文本）
-    - name: Setup rclone (plain text conf)
-      uses: AnimMouse/setup-rclone@v1
+    # ---------- rclone ----------
+    - uses: AnimMouse/setup-rclone@v1
       with:
-        rclone_config: ${{ secrets.RCLONE_CONFIG }}   # 纯文本 rclone.conf
+        rclone_config: ${{ secrets.RCLONE_CONFIG }}
         disable_base64: true
 
-    # 4) 安装 gamdl + FFmpeg
-    - name: Install gamdl & FFmpeg
+    # ---------- gamdl + ffmpeg ----------
+    - name: Install gamdl & ffmpeg (pip)
       run: |
-        brew update
-        brew install gamdl ffmpeg
-        gamdl --version
-        ffmpeg -version | head -n 1
+        pipx install --force gamdl        # 自带隔离，自动拉最新
+        brew install ffmpeg
+        gamdl --version                   # 确认 ≥ 2.5.2
 
-    # 5) 写入 cookies.txt
-    - name: Write Apple Music cookies
-      shell: bash
+    # ---------- cookies ----------
+    - name: Write cookies.txt
       run: |
-        printf '%s' "${{ secrets.APPLE_COOKIES }}" > "$COOKIES_FILE"
-        echo "Cookies saved to $COOKIES_FILE"
+        echo "${{ secrets.APPLE_COOKIES }}" > "$COOKIES_FILE"
 
-    # 6) 使用 gamdl 下载 Apple Music
-    - name: Download from Apple Music
+    # ---------- auth sanity check ----------
+    - name: Check Apple Music auth
+      run: |
+        gamdl --check-auth -c "$COOKIES_FILE"
+
+    # ---------- download ----------
+    - name: Download with gamdl
       shell: bash
       env:
         URLS: ${{ github.event.inputs.apple_urls }}
       run: |
-        mkdir -p "$GITHUB_WORKSPACE/downloads"
-        IFS=$'\n' read -rd '' -a url_array <<< "$URLS"
-        for url in "${url_array[@]}"; do
-          echo "🎵 Downloading $url ..."
-          gamdl \
-            --cookies-path "$COOKIES_FILE" \
-            --output-path "$GITHUB_WORKSPACE/downloads" \
-            --overwrite \
-            "$url"
+        set -Eeuxo pipefail
+        mkdir -p downloads
+        declare -a failed=()
+        IFS=$'\n' read -rd '' -a arr <<< "$URLS"
+        for url in "${arr[@]}"; do
+          echo "🎵  $url"
+          if ! gamdl -c "$COOKIES_FILE" -o downloads --overwrite "$url"; then
+            echo "⚠️  FAILED: $url"
+            failed+=("$url")
+          fi
         done
-        echo "✅ All downloads finished."
-        du -sh "$GITHUB_WORKSPACE/downloads"
+        echo "✅  Downloads done. Size:"
+        du -sh downloads || true
+        if ((${#failed[@]})); then
+          printf '%s\n' "${failed[@]}" > failed.txt
+          echo "::warning title=Some downloads failed::See failed.txt in artifacts"
+        fi
 
-    # 7) 上传到 OneDrive
-    - name: Upload to OneDrive
-      shell: bash
+    # ---------- upload ----------
+    - name: Move to OneDrive
       run: |
-        SRC="$GITHUB_WORKSPACE/downloads/"
-        DST="${ONEDRIVE_REMOTE}:${{ github.event.inputs.dst_path }}"
-        echo "📁 源目录 = $SRC"
-        echo "📁 目标目录 = $DST"
-
-        rclone copy "$SRC" "$DST" \
-          --transfers=64 \
-          --checkers=64 \
-          --fast-list \
-          --max-backlog=999999 \
-          --buffer-size=1G \
-          --multi-thread-streams=16 \
-          --multi-thread-cutoff=64M \
-          --drive-chunk-size=128M \
-          --onedrive-chunk-size=160M \
-          --retries=3 \
-          --retries-sleep=10s \
-          --progress \
-          --stats=1s
+        rclone move "downloads/" "${ONEDRIVE_REMOTE}:${{ github.event.inputs.dst_path }}" \
+          --transfers=64 --checkers=64 --fast-list \
+          --buffer-size=1G --multi-thread-streams=16 --multi-thread-cutoff=64M \
+          --drive-chunk-size=128M --onedrive-chunk-size=160M \
+          --stats=1s --retries=3 --retries-sleep=10s
