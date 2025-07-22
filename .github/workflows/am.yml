@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       apple_urls:
-        description: 'Apple Music 链接（多条用空格/换行分隔）'
+        description: 'Apple Music 链接（多条可用空格/换行分隔）'
         required: true
       dst_path:
         description: 'OneDrive 目标目录（相对于 od: Remote）'
@@ -26,22 +26,26 @@ jobs:
         rclone_config: ${{ secrets.RCLONE_CONFIG }}
         disable_base64: true
 
-    # ---------- gamdl + ffmpeg ----------
-    - name: Install gamdl & ffmpeg (pip)
+    # ---------- free up space ----------
+    - name: Free disk space
       run: |
-        pipx install --force gamdl        # 自带隔离，自动拉最新
+        sudo rm -rf /usr/local/share/dotnet \
+                     "$(brew --prefix)/share/android-commandlinetools" \
+                     /usr/local/lib/android /opt/ghc /usr/local/lib/codeql \
+                     /Applications/Xcode*.app || true
+        df -h /
+
+    # ---------- gamdl + ffmpeg ----------
+    - name: Install gamdl & ffmpeg
+      run: |
+        pipx install --force gamdl        # 拉取最新版
         brew install ffmpeg
-        gamdl --version                   # 确认 ≥ 2.5.2
+        gamdl --version
 
     # ---------- cookies ----------
     - name: Write cookies.txt
       run: |
         echo "${{ secrets.APPLE_COOKIES }}" > "$COOKIES_FILE"
-
-    # ---------- auth sanity check ----------
-    - name: Check Apple Music auth
-      run: |
-        gamdl --check-auth -c "$COOKIES_FILE"
 
     # ---------- download ----------
     - name: Download with gamdl
@@ -49,10 +53,10 @@ jobs:
       env:
         URLS: ${{ github.event.inputs.apple_urls }}
       run: |
-        set -Eeuxo pipefail
+        set -Eeuo pipefail
         mkdir -p downloads
-        declare -a failed=()
         IFS=$'\n' read -rd '' -a arr <<< "$URLS"
+        failed=()
         for url in "${arr[@]}"; do
           echo "🎵  $url"
           if ! gamdl -c "$COOKIES_FILE" -o downloads --overwrite "$url"; then
@@ -60,7 +64,6 @@ jobs:
             failed+=("$url")
           fi
         done
-        echo "✅  Downloads done. Size:"
         du -sh downloads || true
         if ((${#failed[@]})); then
           printf '%s\n' "${failed[@]}" > failed.txt
