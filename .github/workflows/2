@@ -1,0 +1,58 @@
+name: Cyberdrop / Bunkr 下载并上传 OneDrive
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: 'Cyberdrop.me、Bunkr.sk 等相册或文件 URL'
+        required: true
+      dest_dir:
+        description: '上传到 od: 下的子目录（自动创建），如 MyAlbum'
+        required: true
+
+jobs:
+  download_and_upload:
+    runs-on: ubuntu-latest   # macOS 也行，改成 macos-latest 即可
+
+    steps:
+
+      # 2. 安装 Python (≥3.10)
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # 3. 克隆并安装 CyberdropBunkrDownloader
+      - name: Install Cyberdrop/Bunkr Downloader
+        run: |
+          git clone https://github.com/PaaaulZ/CyberdropBunkrDownloader.git
+          pip install --upgrade pip
+          pip install -r CyberdropBunkrDownloader/requirements.txt
+
+      # 4. 执行下载到 ./downloads
+      - name: Download target URL
+        run: |
+          python CyberdropBunkrDownloader/dump.py \
+            -u "${{ github.event.inputs.target_url }}" \
+            -p downloads
+
+      # 5. 安装并加载 Rclone（纯文本 config）
+      - name: Setup Rclone (plain config)
+        uses: AnimMouse/setup-rclone@v1
+        with:
+          rclone_config: ${{ secrets.RCLONE_CONFIG }}
+          disable_base64: true   # 告诉 action：这是纯文本，而不是 base64
+
+      # 6. 上传到 OneDrive
+      - name: Upload to OneDrive
+        run: |
+          echo "📁 源目录  = downloads/"
+          echo "📁 目标目录 = od:${{ github.event.inputs.dest_dir }}"
+          rclone copy downloads/ "od:${{ github.event.inputs.dest_dir }}" \
+            --transfers 32 --checkers 32 --fast-list \
+            --multi-thread-streams 8 --multi-thread-cutoff 16M \
+            --buffer-size 1G --drive-chunk-size 256M \
+            --onedrive-chunk-size 60M --progress --stats 1s
+
+      # 7. 清理
+      - name: Cleanup
+        run: rm -rf downloads
