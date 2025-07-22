@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       apple_urls:
-        description: 'Apple Music 链接（多条可用空格/换行分隔）'
+        description: 'Apple Music 链接（多条可用空格/换行分隔）'
         required: true
       dst_path:
         description: 'OneDrive 目标目录（相对于 od: Remote）'
@@ -17,16 +17,16 @@ jobs:
 
     env:
       COOKIES_FILE: ${{ github.workspace }}/cookies.txt
-      ONEDRIVE_REMOTE: od
+      ONEDRIVE_REMOTE: od           # ← 与 rclone.conf 中的 Remote 名称保持一致
 
     steps:
-    # ---------- rclone ----------
+    # 1) rclone（纯文本 conf）
     - uses: AnimMouse/setup-rclone@v1
       with:
         rclone_config: ${{ secrets.RCLONE_CONFIG }}
         disable_base64: true
 
-    # ---------- free up space ----------
+    # 2) 释放磁盘空间
     - name: Free disk space
       run: |
         sudo rm -rf /usr/local/share/dotnet \
@@ -35,19 +35,19 @@ jobs:
                      /Applications/Xcode*.app || true
         df -h /
 
-    # ---------- gamdl + ffmpeg ----------
+    # 3) 安装 gamdl + FFmpeg
     - name: Install gamdl & ffmpeg
       run: |
-        pipx install --force gamdl        # 拉取最新版
+        pipx install --force gamdl          # 始终拉取最新版
         brew install ffmpeg
         gamdl --version
 
-    # ---------- cookies ----------
+    # 4) 写入 cookies.txt
     - name: Write cookies.txt
       run: |
         echo "${{ secrets.APPLE_COOKIES }}" > "$COOKIES_FILE"
 
-    # ---------- download ----------
+    # 5) 下载 Apple Music
     - name: Download with gamdl
       shell: bash
       env:
@@ -59,7 +59,9 @@ jobs:
         failed=()
         for url in "${arr[@]}"; do
           echo "🎵  $url"
-          if ! gamdl -c "$COOKIES_FILE" -o downloads --overwrite "$url"; then
+          if gamdl -c "$COOKIES_FILE" -o downloads --overwrite "$url"; then
+            echo "✅  OK"
+          else
             echo "⚠️  FAILED: $url"
             failed+=("$url")
           fi
@@ -70,7 +72,7 @@ jobs:
           echo "::warning title=Some downloads failed::See failed.txt in artifacts"
         fi
 
-    # ---------- upload ----------
+    # 6) 上传到 OneDrive（完成后删除本地文件）
     - name: Move to OneDrive
       run: |
         rclone move "downloads/" "${ONEDRIVE_REMOTE}:${{ github.event.inputs.dst_path }}" \
