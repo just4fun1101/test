@@ -7,7 +7,7 @@ on:
         description: '要下载的 SxyPrn 视频或专辑链接'
         required: true
       dest_dir:
-        description: '上传至 od 的目标子目录（默认为 lil vids）'
+        description: '上传至 OneDrive 的目标子目录（默认为 lil vids）'
         required: false
         default: 'lil vids'
 
@@ -15,45 +15,39 @@ jobs:
   download_and_upload:
     runs-on: ubuntu-latest
     steps:
-      # 1. 拉取仓库代码（可选，如果仅使用脚本可省略）
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # 2. 安装 Python 及 yt-dlp
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.x'
+
       - name: Install yt-dlp
         run: |
           python -m pip install --upgrade pip
           pip install yt-dlp
 
-      # 3. 安装 uncensored 插件
       - name: Install yt-dlp-uncensored-plugin
         run: |
-          # 创建插件目录
           mkdir -p ~/.config/yt-dlp/plugins
-          # 克隆插件仓库到指定位置
           git clone https://github.com/mirkul-yeah/yt-dlp-uncensored-plugin.git ~/.config/yt-dlp/plugins/yt-dlp-uncensored-plugin
 
-      # 4. 使用 yt-dlp 下载 SxyPrn 内容
-      - name: Download from SxyPrn
+      - name: Download from SxyPrn (安全文件名)
         run: |
-          # 指定下载目录
           DOWNLOAD_DIR=downloads
           mkdir -p "$DOWNLOAD_DIR"
-          # 调用 yt-dlp，自动加载插件
-          yt-dlp -o "${DOWNLOAD_DIR}/%(title)s.%(ext)s" "${{ github.event.inputs.sxyprn_url }}"
+          yt-dlp \
+            --restrict-filenames \
+            -o "${DOWNLOAD_DIR}/%(id)s.%(ext)s" \
+            "${{ github.event.inputs.sxyprn_url }}"
 
-      # 5. 安装并配置 rclone
       - name: Install and configure Rclone
         uses: AnimMouse/setup-rclone@v1
         with:
           rclone_config: ${{ secrets.RCLONE_CONFIG }}
           disable_base64: true
 
-      # 6. 上传到 OneDrive 的 lil vids 目录
       - name: Upload to OneDrive
         run: |
           SRC="./downloads"
