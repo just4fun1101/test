@@ -1,4 +1,4 @@
-name: Bunkr 下载并上传到 OneDrive
+name: Bunkr-OneDrive
 
 on:
   workflow_dispatch:
@@ -9,25 +9,31 @@ on:
 
 jobs:
   bunkr_to_rclone:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
+
+    env:
+      RCLONE_STATS: 1s
 
     steps:
       - name: Checkout 代码
         uses: actions/checkout@v3
 
+      - name: 安装系统依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-venv git
+
       - name: 下载并运行 BunkrDownloader
         run: |
-          # 克隆源码
           git clone https://github.com/Lysagxra/BunkrDownloader.git
           cd BunkrDownloader
-          
-          # 创建并激活虚拟环境，安装依赖
+
           python3 -m venv venv
           source venv/bin/activate
           pip install --upgrade pip
           pip install -r requirements.txt
-          
-          # 下载指定的 Bunkr URL（结果在 BunkrDownloader/Downloads/）
+
+          # 下载到 BunkrDownloader/Downloads/
           python3 downloader.py "${{ github.event.inputs.bunkr_url }}" --disable-ui
 
       - name: 安装并加载 Rclone（纯文本 config）
@@ -39,12 +45,12 @@ jobs:
       - name: 上传 Downloads/ 到 od:lil vids
         run: |
           SRC_DIR="BunkrDownloader/Downloads/"
-          DEST_DIR="lil vids"
-          echo "📁 源目录 = ${SRC_DIR}"
-          echo "📁 目标目录 = od:${DEST_DIR}"
-          rclone copy \
-            "${SRC_DIR}" \
-            "od:${DEST_DIR}" \
+          DEST_DIR="od:lil vids"
+
+          echo "📁 源目录 = $SRC_DIR"
+          echo "📁 目标目录 = $DEST_DIR"
+
+          rclone copy "$SRC_DIR" "$DEST_DIR" \
             --transfers=32 \
             --checkers=32 \
             --fast-list \
@@ -54,7 +60,7 @@ jobs:
             --drive-chunk-size=256M \
             --onedrive-chunk-size=60M \
             --progress \
-            --stats=1s
-        # 若你的 config 有加密密码，再启用下面两行：
+            --stats=$RCLONE_STATS
+        # 如果 rclone.conf 使用了密码，请取消以下注释
         # env:
         #   RCLONE_CONFIG_PASS: ${{ secrets.RCLONE_CONFIG_PASS }}
