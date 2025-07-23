@@ -1,4 +1,4 @@
-name: sxyprn 下载并上传至 OneDrive lil vids
+name: sxyprn-od
 
 on:
   workflow_dispatch:
@@ -23,6 +23,11 @@ jobs:
         with:
           python-version: '3.x'
 
+      - name: Install aria2 for parallel download
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y aria2
+
       - name: Install yt-dlp
         run: |
           python -m pip install --upgrade pip
@@ -33,12 +38,14 @@ jobs:
           mkdir -p ~/.config/yt-dlp/plugins
           git clone https://github.com/mirkul-yeah/yt-dlp-uncensored-plugin.git ~/.config/yt-dlp/plugins/yt-dlp-uncensored-plugin
 
-      - name: Download from SxyPrn (安全文件名)
+      - name: Download from SxyPrn (多连接加速)
         run: |
           DOWNLOAD_DIR=downloads
           mkdir -p "$DOWNLOAD_DIR"
           yt-dlp \
             --restrict-filenames \
+            --external-downloader aria2c \
+            --external-downloader-args "-x16 -s16 -k1M" \
             -o "${DOWNLOAD_DIR}/%(id)s.%(ext)s" \
             "${{ github.event.inputs.sxyprn_url }}"
 
