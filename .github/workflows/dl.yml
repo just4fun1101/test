@@ -15,7 +15,6 @@ on:
         default: "1080"
 
 env:
-  # —— 常量配置 —— #
   PYTHON_VERSION: "3.12"
   DL_DIR: "downloads"
 
@@ -24,60 +23,58 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1) 检出仓库 -----------------------------------------------------------------
+      - uses: actions/checkout@v4
 
-    # 1) 检出仓库
-    - uses: actions/checkout@v4
+      # 2) 安装 Python 与依赖 --------------------------------------------------------
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
 
-    # 2) 安装依赖（Python + yt‑dlp + cloudscraper + rclone）
-    - name: Set up Python & deps
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
-        cache: "pip"
-    - run: |
-        python -m pip install -U pip
-        pip install yt-dlp cloudscraper beautifulsoup4 tqdm
-        sudo apt-get -qq update
-        sudo apt-get -qq install -y rclone
+      - name: Install Python packages & rclone
+        run: |
+          python -m pip install --upgrade pip
+          pip install yt-dlp cloudscraper beautifulsoup4 tqdm
+          sudo apt-get -qq update
+          sudo apt-get -qq install -y rclone
 
-    # 3) （可选）配置代理
-    - name: Export proxy
-      if: secrets.PROXY != ''
-      run: |
-        echo "HTTP_PROXY=${{ secrets.PROXY }}" >> $GITHUB_ENV
-        echo "HTTPS_PROXY=${{ secrets.PROXY }}" >> $GITHUB_ENV
+      # 3) （可选）配置代理 ----------------------------------------------------------
+      - name: Export proxy variables
+        if: ${{ secrets.PROXY != '' }}
+        run: |
+          echo "HTTP_PROXY=${{ secrets.PROXY }}"  >> $GITHUB_ENV
+          echo "HTTPS_PROXY=${{ secrets.PROXY }}" >> $GITHUB_ENV
 
-    # 4) 写入 rclone.conf
-    # ---- 方法 A：纯文本 secret（最简单） ----
-    - name: Write rclone.conf (plain)
-      if: ${{ secrets.RCLONE_CONFIG && !startsWith(secrets.RCLONE_CONFIG, 'ew') }}   # 非 base64 简单判断
-      run: |
-        mkdir -p ~/.config/rclone
-        echo "${{ secrets.RCLONE_CONFIG }}" > ~/.config/rclone/rclone.conf
+      # 4) 写入 rclone.conf（纯文本 Secret）-----------------------------------------
+      - name: Write rclone.conf (plain)
+        if: ${{ secrets.RCLONE_CONFIG != '' && !startsWith(secrets.RCLONE_CONFIG, 'ew') }}
+        run: |
+          mkdir -p ~/.config/rclone
+          echo "${{ secrets.RCLONE_CONFIG }}" > ~/.config/rclone/rclone.conf
 
-    # 5) 下载视频
-    - name: Download from 
-      shell: bash
-      run: |
-        python dl.py ${{ github.event.inputs.ph_urls }} \
-               -o "${{ env.DL_DIR }}" \
-               --quality "${{ github.event.inputs.max_quality }}"
-        echo "✅ 下载完毕"; ls -R "${{ env.DL_DIR }}"
+      # 5) 下载视频 -----------------------------------------------------------------
+      - name: Download from PornHoarder
+        run: |
+          python dl.py ${{ github.event.inputs.ph_urls }} \
+                 -o "${{ env.DL_DIR }}" \
+                 --quality "${{ github.event.inputs.max_quality }}"
+          echo "✅ 下载完毕"; ls -R "${{ env.DL_DIR }}"
 
-    # 6) 上传到 OneDrive（remote 名假设为 od:）
-    - name: Rclone upload
-      shell: bash
-      run: |
-        rclone copy "${{ env.DL_DIR }}" "od:${{ github.event.inputs.dst_dir }}" \
-          --transfers=8 --checkers=16 --fast-list --stats=30s -P
+      # 6) 上传到 OneDrive ----------------------------------------------------------
+      - name: Rclone upload
+        run: |
+          rclone copy "${{ env.DL_DIR }}" "od:${{ github.event.inputs.dst_dir }}" \
+            --transfers=8 --checkers=16 --fast-list --stats=30s -P
 
-    # 7) 失败时把日志和文件保留为 Artifact 方便排查
-    - name: Upload artifacts on failure
-      if: failure()
-      uses: actions/upload-artifact@v4
-      with:
-        name: debug-logs
-        path: |
-          "${{ env.DL_DIR }}"
-          ~/.config/rclone/rclone.log
-        retention-days: 3
+      # 7) 失败时保存日志 -----------------------------------------------------------
+      - name: Upload artifacts on failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-logs
+          path: |
+            ${{ env.DL_DIR }}
+            ~/.config/rclone/rclone.log
+          retention-days: 3
