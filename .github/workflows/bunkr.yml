@@ -6,9 +6,6 @@ on:
       bunkr_url:
         description: '要下载的 Bunkr 专辑或文件 URL'
         required: true
-      dest_dir:
-        description: '上传到 od: 下的目标子目录（会自动创建），例如：MyAlbum'
-        required: true
 
 jobs:
   bunkr_to_rclone:
@@ -39,13 +36,15 @@ jobs:
           rclone_config: ${{ secrets.RCLONE_CONFIG }}
           disable_base64: true
 
-      - name: "上传 Downloads/ 到 od:${{ github.event.inputs.dest_dir }}"
+      - name: 上传 Downloads/ 到 od:lil vids
         run: |
-          echo "📁 源目录 = BunkrDownloader/Downloads/"
-          echo "📁 目标目录 = od:${{ github.event.inputs.dest_dir }}"
+          SRC_DIR="BunkrDownloader/Downloads/"
+          DEST_DIR="lil vids"
+          echo "📁 源目录 = ${SRC_DIR}"
+          echo "📁 目标目录 = od:${DEST_DIR}"
           rclone copy \
-            "BunkrDownloader/Downloads/" \
-            "od:${{ github.event.inputs.dest_dir }}" \
+            "${SRC_DIR}" \
+            "od:${DEST_DIR}" \
             --transfers=32 \
             --checkers=32 \
             --fast-list \
