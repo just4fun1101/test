@@ -23,30 +23,31 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1) 检出仓库 -----------------------------------------------------------------
-      - uses: actions/checkout@v4
+    
+      # 1) 检出仓库
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
-      # 2) 安装 Python 与依赖 --------------------------------------------------------
+      # 2) 安装 Python
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: "pip"
 
-      - name: Install Python packages & rclone
+      # 3) 安装所需 Python 包
+      - name: Install Python deps
         run: |
           python -m pip install --upgrade pip
           pip install yt-dlp cloudscraper beautifulsoup4 tqdm
-          sudo apt-get -qq update
-          sudo apt-get -qq install -y rclone
 
-      # 4) 写入 rclone.conf（纯文本 Secret）-----------------------------------------
-      - uses: AnimMouse/setup-rclone@v1
+      # 4) 安装并加载 rclone（纯文本 config）
+      - name: Set up rclone
+        uses: AnimMouse/setup-rclone@v1
         with:
           rclone_config: ${{ secrets.RCLONE_CONFIG }}
-          disable_base64: true
+          disable_base64: true         # 你的 config 不是 base64 就设为 true
 
-      # 5) 下载视频 -----------------------------------------------------------------
+      # 5) 解析并下载 PornHoarder 视频
       - name: Download from PornHoarder
         run: |
           python dl.py ${{ github.event.inputs.ph_urls }} \
@@ -54,13 +55,13 @@ jobs:
                  --quality "${{ github.event.inputs.max_quality }}"
           echo "✅ 下载完毕"; ls -R "${{ env.DL_DIR }}"
 
-      # 6) 上传到 OneDrive ----------------------------------------------------------
+      # 6) 上传到 OneDrive（假设远程名为 od:）
       - name: Rclone upload
         run: |
           rclone copy "${{ env.DL_DIR }}" "od:${{ github.event.inputs.dst_dir }}" \
             --transfers=8 --checkers=16 --fast-list --stats=30s -P
 
-      # 7) 失败时保存日志 -----------------------------------------------------------
+      # 7) 失败时保存调试文件
       - name: Upload artifacts on failure
         if: ${{ failure() }}
         uses: actions/upload-artifact@v4
