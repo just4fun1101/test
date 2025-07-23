@@ -6,9 +6,6 @@ on:
       gofile_url:
         description: '要下载的 gofile.io 链接，例如：https://gofile.io/d/CONTENTID'
         required: true
-      dest_dir:
-        description: '上传到 od: 下的目标子目录（自动创建），例如：MyFolder'
-        required: true
 
 jobs:
   download_and_upload:
@@ -36,14 +33,13 @@ jobs:
           rclone_config: ${{ secrets.RCLONE_CONFIG }}
           disable_base64: true
 
-      - name: "解析 CONTENT_ID 并上传到 od:"
+      - name: "解析 CONTENT_ID 并上传到 od:lil vids/<CONTENT_ID>"
         run: |
           URL="${{ github.event.inputs.gofile_url }}"
           CONTENT_ID="${URL##*/}"
 
           SRC_DIR="gofile-downloader/${CONTENT_ID}/"
-          DEST_PARENT="${{ github.event.inputs.dest_dir }}"
-          DEST="od:${DEST_PARENT}/${CONTENT_ID}"
+          DEST="od:lil vids/${CONTENT_ID}"
 
           echo "📁 源目录 = $SRC_DIR"
           echo "📁 目标目录 = $DEST"
