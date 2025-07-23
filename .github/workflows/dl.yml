@@ -41,11 +41,10 @@ jobs:
           sudo apt-get -qq install -y rclone
 
       # 4) 写入 rclone.conf（纯文本 Secret）-----------------------------------------
-      - name: Write rclone.conf (plain)
-        if: ${{ secrets.RCLONE_CONFIG != '' && !startsWith(secrets.RCLONE_CONFIG, 'ew') }}
-        run: |
-          mkdir -p ~/.config/rclone
-          echo "${{ secrets.RCLONE_CONFIG }}" > ~/.config/rclone/rclone.conf
+      - uses: AnimMouse/setup-rclone@v1
+        with:
+          rclone_config: ${{ secrets.RCLONE_CONFIG }}
+          disable_base64: true
 
       # 5) 下载视频 -----------------------------------------------------------------
       - name: Download from PornHoarder
