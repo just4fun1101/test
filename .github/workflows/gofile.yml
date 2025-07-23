@@ -1,4 +1,4 @@
-name: GoFile 下载并上传到 OneDrive
+name: GoFile-OneDrive
 
 on:
   workflow_dispatch:
@@ -9,13 +9,21 @@ on:
 
 jobs:
   download_and_upload:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
+
+    env:
+      RCLONE_STATS: 1s
 
     steps:
-      - name: "Checkout 代码"
+      - name: Checkout 代码
         uses: actions/checkout@v3
 
-      - name: "克隆并运行 gofile-downloader"
+      - name: 安装系统依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-venv git
+
+      - name: 克隆并运行 gofile-downloader
         run: |
           git clone https://github.com/ltsdw/gofile-downloader.git
           cd gofile-downloader
@@ -27,26 +35,24 @@ jobs:
 
           python3 gofile-downloader.py "${{ github.event.inputs.gofile_url }}"
 
-      - name: "安装并加载 Rclone（纯文本 config）"
+      - name: 安装并加载 Rclone（纯文本 config）
         uses: AnimMouse/setup-rclone@v1
         with:
           rclone_config: ${{ secrets.RCLONE_CONFIG }}
           disable_base64: true
 
-      - name: "解析 CONTENT_ID 并上传到 od:lil vids/<CONTENT_ID>"
+      - name: 解析 CONTENT_ID 并上传到 od:lil vids
         run: |
           URL="${{ github.event.inputs.gofile_url }}"
           CONTENT_ID="${URL##*/}"
 
           SRC_DIR="gofile-downloader/${CONTENT_ID}/"
-          DEST="od:lil vids/${CONTENT_ID}"
+          DEST_DIR="od:lil vids/${CONTENT_ID}"
 
           echo "📁 源目录 = $SRC_DIR"
-          echo "📁 目标目录 = $DEST"
+          echo "📁 目标目录 = $DEST_DIR"
 
-          rclone copy \
-            "$SRC_DIR" \
-            "$DEST" \
+          rclone copy "$SRC_DIR" "$DEST_DIR" \
             --transfers=32 \
             --checkers=32 \
             --fast-list \
@@ -56,7 +62,7 @@ jobs:
             --drive-chunk-size=256M \
             --onedrive-chunk-size=60M \
             --progress \
-            --stats=1s
-        # 如有加密密码，请启用下面环境变量：
+            --stats=$RCLONE_STATS
+        # 如果 rclone.conf 使用了密码，请取消以下注释
         # env:
         #   RCLONE_CONFIG_PASS: ${{ secrets.RCLONE_CONFIG_PASS }}
