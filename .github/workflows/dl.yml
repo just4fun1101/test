@@ -40,13 +40,6 @@ jobs:
           sudo apt-get -qq update
           sudo apt-get -qq install -y rclone
 
-      # 3) （可选）配置代理 ----------------------------------------------------------
-      - name: Export proxy variables
-        if: ${{ secrets.PROXY != '' }}
-        run: |
-          echo "HTTP_PROXY=${{ secrets.PROXY }}"  >> $GITHUB_ENV
-          echo "HTTPS_PROXY=${{ secrets.PROXY }}" >> $GITHUB_ENV
-
       # 4) 写入 rclone.conf（纯文本 Secret）-----------------------------------------
       - name: Write rclone.conf (plain)
         if: ${{ secrets.RCLONE_CONFIG != '' && !startsWith(secrets.RCLONE_CONFIG, 'ew') }}
