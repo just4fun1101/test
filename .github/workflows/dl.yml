@@ -1,73 +1,57 @@
-name: testdl
+name: DoodDL
 
 on:
   workflow_dispatch:
     inputs:
-      ph_urls:
-        description: "PornHoarder 视频页 URL，多个用空格分开"
+      dood_urls:
+        description: "Doodstream /d/ 页面 URL，多个空格分开"
         required: true
       dst_dir:
-        description: "OneDrive 目标子目录，如 PH/"
+        description: "上传到 OneDrive 目标子目录"
         required: true
-      max_quality:
-        description: "最高分辨率（p）"
-        required: false
-        default: "1080"
 
 env:
-  PYTHON_VERSION: "3.12"
-  DL_DIR: "downloads"
+  DL_DIR: downloads
 
 jobs:
-  dl_and_upload:
+  run:
     runs-on: ubuntu-latest
-
     steps:
-    
-      # 1) 检出仓库
-      - name: Checkout repo
-        uses: actions/checkout@v4
+    # 检出
+    - uses: actions/checkout@v4
 
-      # 2) 安装 Python
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
+    # Python & yt‑dlp
+    - name: Install deps
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y python3-pip
+        pip install -U yt-dlp beautifulsoup4 requests tqdm
+        # 把 dood.py 放仓根；若在子目录请修改路径
+        chmod +x dood.py
 
-      # 3) 安装所需 Python 包
-      - name: Install Python deps
-        run: |
-          python -m pip install --upgrade pip
-          pip install yt-dlp cloudscraper beautifulsoup4 tqdm
+    # rclone（纯文本 config）
+    - name: Set up rclone
+      uses: AnimMouse/setup-rclone@v1
+      with:
+        rclone_config: ${{ secrets.RCLONE_CONFIG }}
+        disable_base64: true
 
-      # 4) 安装并加载 rclone（纯文本 config）
-      - name: Set up rclone
-        uses: AnimMouse/setup-rclone@v1
-        with:
-          rclone_config: ${{ secrets.RCLONE_CONFIG }}
-          disable_base64: true         # 你的 config 不是 base64 就设为 true
+    # 下载
+    - name: Download from Doodstream
+      run: |
+        python dood.py ${{ github.event.inputs.dood_urls }} -o "${{ env.DL_DIR }}"
+        echo "Downloaded files:" && ls -R "${{ env.DL_DIR }}"
 
-      # 5) 解析并下载 PornHoarder 视频
-      - name: Download from PornHoarder
-        run: |
-          python dl.py ${{ github.event.inputs.ph_urls }} \
-                 -o "${{ env.DL_DIR }}" \
-                 --quality "${{ github.event.inputs.max_quality }}"
-          echo "✅ 下载完毕"; ls -R "${{ env.DL_DIR }}"
+    # 上传
+    - name: Upload to OneDrive
+      run: |
+        rclone copy "${{ env.DL_DIR }}" "od:${{ github.event.inputs.dst_dir }}" \
+          --transfers=8 --checkers=16 --fast-list --stats=30s -P
 
-      # 6) 上传到 OneDrive（假设远程名为 od:）
-      - name: Rclone upload
-        run: |
-          rclone copy "${{ env.DL_DIR }}" "od:${{ github.event.inputs.dst_dir }}" \
-            --transfers=8 --checkers=16 --fast-list --stats=30s -P
-
-      # 7) 失败时保存调试文件
-      - name: Upload artifacts on failure
-        if: ${{ failure() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: debug-logs
-          path: |
-            ${{ env.DL_DIR }}
-            ~/.config/rclone/rclone.log
-          retention-days: 3
+    # 失败时收集日志
+    - uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: debug
+        path: ${{ env.DL_DIR }}
+        retention-days: 3
