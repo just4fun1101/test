@@ -1,4 +1,4 @@
-name: sxyprn-od
+name: sxyprn 下载并上传至 OneDrive lil vids
 
 on:
   workflow_dispatch:
@@ -16,11 +16,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. （可选）签出仓库代码
+      # 1. 可选：签出仓库
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # 2. 安装 Python 3
+      # 2. 安装 Python 环境
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -40,15 +40,15 @@ jobs:
             https://github.com/mirkul-yeah/yt-dlp-uncensored-plugin.git \
             ~/.config/yt-dlp/plugins/yt-dlp-uncensored-plugin
 
-      # 5. 使用 yt-dlp 原生分片并发下载
-      - name: Download from SxyPrn (原生分片并发)
+      # 5. 下载（最大并发 + 重试）
+      - name: Download from SxyPrn (最大并发)
         run: |
           DOWNLOAD_DIR=downloads
           mkdir -p "$DOWNLOAD_DIR"
           yt-dlp \
             --restrict-filenames \
-            --concurrent-fragments 8 \
-            --fragment-retries 5 \
+            --concurrent-fragments 32 \   # 并行下载 32 个分片  
+            --fragment-retries 20 \       # 每个分片失败重试 20 次  
             -o "${DOWNLOAD_DIR}/%(id)s.%(ext)s" \
             "${{ github.event.inputs.sxyprn_url }}"
 
@@ -59,7 +59,7 @@ jobs:
           rclone_config: ${{ secrets.RCLONE_CONFIG }}
           disable_base64: true
 
-      # 7. 上传下载结果到 OneDrive
+      # 7. 上传到 OneDrive
       - name: Upload to OneDrive
         run: |
           SRC="./downloads"
