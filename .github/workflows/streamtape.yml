@@ -20,7 +20,7 @@ jobs:
       - name: 拉取 yt-dlp 插件仓库
         uses: actions/checkout@v3
         with:
-          repository: yt-dlp-archives/plugins   # 改为 plugins 而非 plugin
+          repository: yt-dlp-archives/plugins   # 注意是 plugins 不是 plugin :contentReference[oaicite:0]{index=0}
           token: ${{ secrets.GITHUB_TOKEN }}
           path: plugin
 
@@ -32,12 +32,12 @@ jobs:
       - name: 生成随机文件名
         run: echo "FNAME=$(uuidgen).mp4" >> $GITHUB_ENV
 
-      # 5. 用 yt-dlp + plugin 下载
+      # 5. 用 yt-dlp + 官方插件下载
       - name: 下载视频
         run: |
           echo "⬇️  下载：${{ github.event.inputs.steamtape_url }} → $FNAME"
           yt-dlp \
-            --plugin-dirs plugin/yt_dlp_plugins \
+            --plugin-dirs plugin/pluggables \       # 指向 pluggables 根目录 :contentReference[oaicite:1]{index=1}
             --no-playlist \
             -o "$FNAME" \
             "${{ github.event.inputs.steamtape_url }}"
