@@ -1,4 +1,3 @@
-# .github/workflows/streamtape-yt-dlp-plugin.yml
 name: Streamtape
 
 on:
@@ -13,33 +12,32 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. 拉主仓库
+      # 1. Checkout 主仓库
       - name: Checkout 主仓库
         uses: actions/checkout@v3
 
-      # 2. 拉插件仓库到 workspace/plugin
-      - name: Checkout yt-dlp 插件仓库
+      # 2. Checkout 插件仓库到 workspace/plugin
+      - name: 拉取 yt-dlp 插件仓库
         uses: actions/checkout@v3
         with:
-          repository: yt-dlp-archives/plugin
-          path: plugin
+          repository: yt-dlp-archives/plugins   # 改为 plugins 而非 plugin
           token: ${{ secrets.GITHUB_TOKEN }}
+          path: plugin
 
       # 3. 安装 yt-dlp
       - name: 安装 yt-dlp
-        run: |
-          python3 -m pip install --upgrade "yt-dlp[default]"
+        run: python3 -m pip install --upgrade "yt-dlp[default]"
 
       # 4. 生成随机文件名
       - name: 生成随机文件名
         run: echo "FNAME=$(uuidgen).mp4" >> $GITHUB_ENV
 
-      # 5. 用 yt-dlp + plugin 下载，并输出到随机名
+      # 5. 用 yt-dlp + plugin 下载
       - name: 下载视频
         run: |
           echo "⬇️  下载：${{ github.event.inputs.steamtape_url }} → $FNAME"
           yt-dlp \
-            --plugin-dirs plugin/yt_dlp_plugins \            # 指定插件目录 :contentReference[oaicite:0]{index=0}
+            --plugin-dirs plugin/yt_dlp_plugins \
             --no-playlist \
             -o "$FNAME" \
             "${{ github.event.inputs.steamtape_url }}"
