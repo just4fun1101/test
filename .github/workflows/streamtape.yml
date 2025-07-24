@@ -16,25 +16,32 @@ jobs:
       - name: Checkout 代码
         uses: actions/checkout@v3
 
-      - name: 设置 Python 环境并安装依赖
+      - name: Python 初始化并安装依赖
         run: |
           python3 -m venv venv
           source venv/bin/activate
           pip install --upgrade pip requests beautifulsoup4
 
-      - name: 获取下载直链
+      - name: 获取下载直链并校验
+        id: get_link
         run: |
           source venv/bin/activate
-          DL_LINK=$(python streamtape.py "${{ github.event.inputs.steamtape_url }}")
-          echo "DL_LINK=$DL_LINK" >> $GITHUB_ENV
+          LINK=$(python streamtape.py "${{ github.event.inputs.steamtape_url }}")
+          echo "🔍 streamtape.py 输出：$LINK"
+          if [[ -z "$LINK" ]]; then
+            echo "❌ 无法获取下载链接，请检查 streamtape.py 是否正确打印直链" >&2
+            exit 1
+          fi
+          echo "DL_LINK=$LINK" >> $GITHUB_ENV
 
       - name: 生成随机文件名
         run: |
           FNAME=$(uuidgen).mp4
           echo "FNAME=$FNAME" >> $GITHUB_ENV
 
-      - name: 用 wget 下载视频
+      - name: 下载视频
         run: |
+          echo "⬇️  开始下载：$DL_LINK → $FNAME"
           wget -O "$FNAME" "$DL_LINK"
 
       - name: 设置 rclone
@@ -42,6 +49,7 @@ jobs:
         with:
           rclone_config: ${{ secrets.RCLONE_CONFIG }}
 
-      - name: 上传到 od lil vids
+      - name: 上传到 od:lil vids
         run: |
-          rclone copy "$FNAME" "od:lil vids"/ --progress
+          echo "⬆️  上传 $FNAME 到 od:lil vids/"
+          rclone copy "$FNAME" "od:lil vids/" --progress
