@@ -1,41 +1,43 @@
-# .github/workflows/streamtape-upload.yml
-name: Streamtape 下载并上传
+# .github/workflows/streamtape-yt-dlp-plugin.yml
+name: Streamtape
 
 on:
   workflow_dispatch:
     inputs:
       steamtape_url:
-        description: 'Streamtape 视频 URL（https://streamtape.com/e/... 或 /v/...）'
+        description: 'Streamtape 视频 URL（…/e/… 或 …/v/…）'
         required: true
 
 jobs:
-  download_and_upload:
+  extract_and_upload:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout 代码
+        uses: actions/checkout@v3
 
-      - name: 安装 Python 依赖
+      - name: 安装 yt-dlp
         run: |
-          python3 -m venv venv
-          source venv/bin/activate
-          pip install --upgrade pip requests beautifulsoup4
+          python3 -m pip install --upgrade "yt-dlp[default]"         # 安装 yt-dlp（含默认依赖） :contentReference[oaicite:0]{index=0}
 
-      - name: 获取直链并校验
-        id: get_link
+      - name: 安装 Streamtape 插件
         run: |
-          source venv/bin/activate
-          LINK=$(python streamtape.py "${{ github.event.inputs.steamtape_url }}") || true
-          echo "🔍 直链：$LINK"
-          [[ -z "$LINK" ]] && { echo "❌ 无法获取下载链接" >&2; exit 1; }
-          echo "DL_LINK=$LINK" >> $GITHUB_ENV
+          # 在用户插件目录创建必要子目录 :contentReference[oaicite:1]{index=1}
+          mkdir -p ~/.config/yt-dlp/plugins/{extractors,postprocessors,downloaders,utils}
+
+          # 克隆官方插件归档
+          git clone https://github.com/yt-dlp-archives/plugin.git /tmp/yt-dlp-plugins
+
+          # 将所有插件代码复制到 yt-dlp 插件目录
+          cp -r /tmp/yt-dlp-plugins/yt_dlp_plugins/* ~/.config/yt-dlp/plugins/
 
       - name: 生成随机文件名
-        run: |
-          echo "FNAME=$(uuidgen).mp4" >> $GITHUB_ENV
+        run: echo "FNAME=$(uuidgen).mp4" >> $GITHUB_ENV
 
-      - name: 下载视频
-        run: wget -O "$FNAME" "$DL_LINK"
+      - name: 用 yt-dlp 下载视频
+        run: |
+          echo "⬇️  下载：${{ github.event.inputs.steamtape_url }} → $FNAME"
+          yt-dlp "${{ github.event.inputs.steamtape_url }}" -o "$FNAME" --no-playlist
 
       - name: 设置 rclone
         uses: AnimMouse/setup-rclone@v1
@@ -43,4 +45,6 @@ jobs:
           rclone_config: ${{ secrets.RCLONE_CONFIG }}
 
       - name: 上传到 od:lil vids
-        run: rclone copy "$FNAME" "od:lil vids/" --progress
+        run: |
+          echo "⬆️  上传 $FNAME 到 od:lil vids/"
+          rclone copy "$FNAME" "od:lil vids/" --progress
