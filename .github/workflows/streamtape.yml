@@ -1,0 +1,54 @@
+# .github/workflows/streamtape-upload.yml
+name: Streamtape下载并上传
+
+on:
+  workflow_dispatch:
+    inputs:
+      steamtape_url:
+        description: 'Streamtape 视频 URL（https://streamtape.com/e/... 或 /v/...）'
+        required: true
+
+jobs:
+  download_and_upload:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout 代码
+        uses: actions/checkout@v3
+
+      - name: 设置 Python 环境并安装依赖
+        run: |
+          python3 -m venv venv
+          source venv/bin/activate
+          pip install --upgrade pip requests beautifulsoup4
+
+      - name: 获取下载直链
+        run: |
+          source venv/bin/activate
+          # 调用仓库中的 streamtape.py，假设它接收 URL 并打印出下载直链
+          DL_LINK=$(python streamtape.py "${{ github.event.inputs.steamtape_url }}")
+          echo "下载链接: $DL_LINK"
+          echo "DL_LINK=$DL_LINK" >> $GITHUB_ENV
+
+      - name: 生成随机文件名
+        run: |
+          FNAME=$(python3 - << 'PYCODE'
+import uuid
+print(uuid.uuid4().hex + ".mp4")
+PYCODE
+          )
+          echo "随机文件名: $FNAME"
+          echo "FNAME=$FNAME" >> $GITHUB_ENV
+
+      - name: 用 wget 下载视频
+        run: |
+          wget -O "${FNAME}" "${DL_LINK}"
+
+      - name: 设置 rclone
+        uses: AnimMouse/setup-rclone@v1
+        with:
+          rclone_config: ${{ secrets.RCLONE_CONFIG }}
+
+      - name: 上传到 od:"lil vids"
+        run: |
+          rclone copy "${FNAME}" od:"lil vids"/ --progress
