@@ -13,28 +13,29 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout 代码
+      - name: Checkout 主仓库
         uses: actions/checkout@v3
 
       - name: 安装 yt-dlp
         run: |
-          python3 -m pip install --upgrade "yt-dlp[default]"         # 安装 yt-dlp（含默认依赖） :contentReference[oaicite:0]{index=0}
+          python3 -m pip install --upgrade "yt-dlp[default]"
 
-      - name: 安装 Streamtape 插件
+      - name: 拉取 yt-dlp 插件仓库
+        uses: actions/checkout@v3
+        with:
+          repository: yt-dlp-archives/plugin
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: plugin
+
+      - name: 部署 Streamtape 插件
         run: |
-          # 在用户插件目录创建必要子目录 :contentReference[oaicite:1]{index=1}
-          mkdir -p ~/.config/yt-dlp/plugins/{extractors,postprocessors,downloaders,utils}
-
-          # 克隆官方插件归档
-          git clone https://github.com/yt-dlp-archives/plugin.git /tmp/yt-dlp-plugins
-
-          # 将所有插件代码复制到 yt-dlp 插件目录
-          cp -r /tmp/yt-dlp-plugins/yt_dlp_plugins/* ~/.config/yt-dlp/plugins/
+          mkdir -p ~/.config/yt-dlp/plugins
+          cp -r plugin/yt_dlp_plugins/* ~/.config/yt-dlp/plugins/
 
       - name: 生成随机文件名
         run: echo "FNAME=$(uuidgen).mp4" >> $GITHUB_ENV
 
-      - name: 用 yt-dlp 下载视频
+      - name: 下载视频
         run: |
           echo "⬇️  下载：${{ github.event.inputs.steamtape_url }} → $FNAME"
           yt-dlp "${{ github.event.inputs.steamtape_url }}" -o "$FNAME" --no-playlist
