@@ -13,38 +13,44 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. 拉主仓库
       - name: Checkout 主仓库
         uses: actions/checkout@v3
 
+      # 2. 拉插件仓库到 workspace/plugin
+      - name: Checkout yt-dlp 插件仓库
+        uses: actions/checkout@v3
+        with:
+          repository: yt-dlp-archives/plugin
+          path: plugin
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # 3. 安装 yt-dlp
       - name: 安装 yt-dlp
         run: |
           python3 -m pip install --upgrade "yt-dlp[default]"
 
-      - name: 拉取 yt-dlp 插件仓库
-        uses: actions/checkout@v3
-        with:
-          repository: yt-dlp-archives/plugin
-          token: ${{ secrets.GITHUB_TOKEN }}
-          path: plugin
-
-      - name: 部署 Streamtape 插件
-        run: |
-          mkdir -p ~/.config/yt-dlp/plugins
-          cp -r plugin/yt_dlp_plugins/* ~/.config/yt-dlp/plugins/
-
+      # 4. 生成随机文件名
       - name: 生成随机文件名
         run: echo "FNAME=$(uuidgen).mp4" >> $GITHUB_ENV
 
+      # 5. 用 yt-dlp + plugin 下载，并输出到随机名
       - name: 下载视频
         run: |
           echo "⬇️  下载：${{ github.event.inputs.steamtape_url }} → $FNAME"
-          yt-dlp "${{ github.event.inputs.steamtape_url }}" -o "$FNAME" --no-playlist
+          yt-dlp \
+            --plugin-dirs plugin/yt_dlp_plugins \            # 指定插件目录 :contentReference[oaicite:0]{index=0}
+            --no-playlist \
+            -o "$FNAME" \
+            "${{ github.event.inputs.steamtape_url }}"
 
+      # 6. 设置 rclone
       - name: 设置 rclone
         uses: AnimMouse/setup-rclone@v1
         with:
           rclone_config: ${{ secrets.RCLONE_CONFIG }}
 
+      # 7. 上传到 od:lil vids
       - name: 上传到 od:lil vids
         run: |
           echo "⬆️  上传 $FNAME 到 od:lil vids/"
