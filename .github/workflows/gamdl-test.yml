@@ -4,36 +4,57 @@ on:
   workflow_dispatch:
     inputs:
       urls:
-        description: "Apple Music 連結（空格分隔，可放藝人網址）"
+        description: "Apple Music 連結（藝人 / 專輯，多條請用空格分隔）"
         required:  true
 
 jobs:
   gamdl_to_onedrive:
     runs-on: macos-latest
     env:
-      DEST_DIR: musics/    # ← OneDrive 目標
+      DEST_DIR: musics/         # ← OneDrive 目標固定
+
     steps:
+    # 0️⃣（可省）釋放空間
+    - name: Free disk space
+      run: |
+        sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+
     - uses: actions/checkout@v4
 
-    # 1. Python + gamdl
+    # 1️⃣ Python + 最新 gamdl（GitHub main）
     - uses: actions/setup-python@v5
-      with: { python-version: "3.12" }
-    - name: Install gamdl
-      run: python -m pip install -U "git+https://github.com/glomatico/gamdl.git@main"
-
-    # 3 確保 ffmpeg
-    - name: Ensure ffmpeg
+      with:
+        python-version: "3.12"
+    - name: Install latest gamdl (dev ≥ 2.6.x)
       run: |
-        command -v ffmpeg || brew install ffmpeg
+        python -m pip uninstall -y gamdl || true
+        python -m pip install --no-cache-dir --force-reinstall \
+          "git+https://github.com/glomatico/gamdl.git@main"
+        echo -n "✅ gamdl version: "; gamdl --version
 
-    # 4. cookies.txt
+    # 2️⃣ 安裝 FFmpeg（macOS runner 已不再預裝）
+    - name: Install FFmpeg
+      run: |
+        brew update --quiet
+        brew install ffmpeg
+
+    # 3️⃣ 給 FFmpeg 加 wrapper：自動開滿 CPU 執行緒
+    - name: Patch FFmpeg for max threads
+      run: |
+        REAL=$(which ffmpeg)
+        sudo mv "$REAL" /usr/local/bin/ffmpeg-real
+        printf '#!/usr/bin/env bash\n/usr/local/bin/ffmpeg-real -threads $(sysctl -n hw.ncpu) "$@"\n' \
+          | sudo tee /usr/local/bin/ffmpeg >/dev/null
+        sudo chmod +x /usr/local/bin/ffmpeg
+
+    # 4️⃣ 還原 cookies.txt
     - name: Restore cookies.txt
       env:
         AM_COOKIES_B64: ${{ secrets.AM_COOKIES_B64 }}
       run: |
         echo "$AM_COOKIES_B64" | base64 --decode > cookies.txt
 
-    # 4. 下載 — albums-only + no-prompt + save-cover + mp4box
+    # 5️⃣ 下載：albums-only + 無互動 + 另存封面
     - name: Download with gamdl
       run: |
         mkdir -p downloads
@@ -46,11 +67,13 @@ jobs:
                 "$u"
         done
 
-    # 5. rclone & 上傳
+    # 6️⃣ rclone 配置
     - uses: AnimMouse/setup-rclone@v1
       with:
         rclone_config: ${{ secrets.RCLONE_CONFIG }}
         disable_base64: true
+
+    # 7️⃣ 上傳到 OneDrive
     - name: Upload to OneDrive
       run: |
         rclone copy downloads "od:${DEST_DIR}" \
