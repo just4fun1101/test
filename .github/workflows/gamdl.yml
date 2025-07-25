@@ -1,7 +1,7 @@
 name: Apple Music downloader
 
 on:
-  workflow_dispatch:                # 手動觸發，表單輸入網址及目標目錄
+  workflow_dispatch:
     inputs:
       urls:
         description: "Apple Music 連結（空格分隔）"
@@ -12,49 +12,46 @@ on:
 
 jobs:
   gamdl_to_onedrive:
-    runs-on: macos-latest           # macOS 自帶 ffmpeg，空間也較大
+    runs-on: macos-latest            # macOS runner 自帶 ffmpeg
 
     steps:
 
-    # 1️⃣ 取用（可空 repo，主要讓 runner 有個工作目錄）
     - uses: actions/checkout@v4
 
-    # 2️⃣ 安裝 Python 及 gamdl
+    # Python + gamdl
     - uses: actions/setup-python@v5
       with:
         python-version: "3.12"
     - name: Install gamdl
-      run: python -m pip install -U pip gamdl         # 不再裝 ffmpeg-static
+      run: python -m pip install -U pip gamdl
 
-    # 3️⃣ 確保 ffmpeg 存在（macOS runner 通常已有，備而不用）
+    # 確保 ffmpeg 存在
     - name: Ensure ffmpeg
       run: |
         command -v ffmpeg || brew install ffmpeg
 
-    # 4️⃣ 還原 cookies.txt（由 Base64 Secret 轉回）
+    # 還原 cookies.txt
     - name: Restore cookies.txt
       env:
         AM_COOKIES_B64: ${{ secrets.AM_COOKIES_B64 }}
       run: |
         echo "$AM_COOKIES_B64" | base64 --decode > cookies.txt
 
-    # 5️⃣ 下載
+    # 下載 → downloads/
     - name: Download with gamdl
       run: |
         mkdir -p downloads
-        # 將輸入欄的多個 URL 轉為陣列，再逐個下載
         read -ra URLS <<< "${{ github.event.inputs.urls }}"
         for u in "${URLS[@]}"; do
-          gamdl -f downloads "$u"
+          gamdl -o downloads "$u"           # ← 換成 -o
         done
 
-    # 6️⃣ 安裝 rclone 並寫入 config
+    # rclone
     - uses: AnimMouse/setup-rclone@v1
       with:
-        rclone_config: ${{ secrets.RCLONE_CONFIG }}   # 純文字，不經 Base64
+        rclone_config: ${{ secrets.RCLONE_CONFIG }}
         disable_base64: true
 
-    # 7️⃣ 上傳到 OneDrive (remote 名 od:)
     - name: Upload to OneDrive
       run: |
         rclone copy downloads "od:${{ github.event.inputs.dest_dir }}" \
