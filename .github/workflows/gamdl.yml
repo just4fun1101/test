@@ -19,12 +19,19 @@ jobs:
       # 1️⃣ 取用程式碼（可放空 repo，也可以是你的腳本/設定）
       - uses: actions/checkout@v4
 
-      # 2️⃣ 裝 Python + gamdl + ffmpeg
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: |
-          python -m pip install -U pip gamdl ffmpeg-static
+      # 2️⃣ 安裝 Python + gamdl
+- uses: actions/setup-python@v5
+  with:
+    python-version: "3.12"
+- run: python -m pip install -U pip gamdl
+
+# 2️⃣‑b 確保 FFmpeg 存在
+- name: Ensure FFmpeg
+  run: |
+    if ! command -v ffmpeg; then
+      brew install ffmpeg
+    fi
+
 
       # 3️⃣ 還原 cookies.txt（從 Secrets 來）
       - name: Restore cookies.txt
