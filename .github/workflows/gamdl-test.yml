@@ -14,10 +14,6 @@ jobs:
       DEST_DIR: musics/         # ← OneDrive 目標固定
 
     steps:
-    # 0️⃣（可省）釋放空間
-    - name: Free disk space
-      run: |
-        sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
 
     - uses: actions/checkout@v4
 
@@ -61,7 +57,6 @@ jobs:
         read -ra URLS <<< "${{ github.event.inputs.urls }}"
         for u in "${URLS[@]}"; do
           gamdl -o downloads \
-                --select albums \
                 --no-prompt \
                 --save-cover \
                 "$u"
