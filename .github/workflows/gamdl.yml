@@ -1,59 +1,60 @@
-name: Apple Music downloader
+name: Apple Music
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:                # 只需要貼 URL
     inputs:
       urls:
-        description: "Apple Music 連結（空格分隔）"
-        required:  true
-      dest_dir:
-        description: "上傳到 od: 的子目錄，例如 music/2025‑07/"
+        description: "Apple Music 連結（空格分隔）"
         required:  true
 
 jobs:
   gamdl_to_onedrive:
-    runs-on: macos-latest            # macOS runner 自帶 ffmpeg
+    runs-on: macos-latest           # macOS runner 自帶 ffmpeg
+    env:
+      DEST_DIR: musics/             # ← 固定上傳到 od:musics/
 
     steps:
 
+    # 1️⃣ 工作目錄
     - uses: actions/checkout@v4
 
-    # Python + gamdl
+    # 2️⃣ Python + gamdl
     - uses: actions/setup-python@v5
       with:
         python-version: "3.12"
     - name: Install gamdl
       run: python -m pip install -U pip gamdl
 
-    # 確保 ffmpeg 存在
+    # 3️⃣ 確保 ffmpeg
     - name: Ensure ffmpeg
       run: |
         command -v ffmpeg || brew install ffmpeg
 
-    # 還原 cookies.txt
+    # 4️⃣ 還原 cookies.txt
     - name: Restore cookies.txt
       env:
         AM_COOKIES_B64: ${{ secrets.AM_COOKIES_B64 }}
       run: |
         echo "$AM_COOKIES_B64" | base64 --decode > cookies.txt
 
-    # 下載 → downloads/
+    # 5️⃣ 下載（附 --save-cover 旗標）
     - name: Download with gamdl
       run: |
         mkdir -p downloads
         read -ra URLS <<< "${{ github.event.inputs.urls }}"
         for u in "${URLS[@]}"; do
-          gamdl -o downloads "$u"           # ← 換成 -o
+          gamdl -o downloads -s "$u"
         done
 
-    # rclone
+    # 6️⃣ rclone
     - uses: AnimMouse/setup-rclone@v1
       with:
         rclone_config: ${{ secrets.RCLONE_CONFIG }}
         disable_base64: true
 
+    # 7️⃣ 上傳到 od:musics/
     - name: Upload to OneDrive
       run: |
-        rclone copy downloads "od:${{ github.event.inputs.dest_dir }}" \
+        rclone copy downloads "od:${DEST_DIR}" \
           --transfers 32 --checkers 32 --fast-list \
           --progress --stats 30s
