@@ -1,74 +1,56 @@
 name: Apple Music test
-
 on:
   workflow_dispatch:
     inputs:
       urls:
-        description: "Apple Music 連結（藝人 / 專輯，多條請用空格分隔）"
-        required:  true
+        description: "Apple Music 連結（藝人 or 專輯，多條用空格）"
+        required: true
 
 jobs:
   gamdl_to_onedrive:
     runs-on: macos-latest
     env:
-      DEST_DIR: musics/         # ← OneDrive 目標固定
+      DEST_DIR: musics/          # OneDrive 子目錄
 
     steps:
 
     - uses: actions/checkout@v4
 
-    # 1️⃣ Python + 最新 gamdl（GitHub main）
+    # 1. Python 3.12 + PyPI 穩定版 gamdl
     - uses: actions/setup-python@v5
-      with:
-        python-version: "3.12"
-    - name: Install latest gamdl (dev ≥ 2.6.x)
-      run: |
-        python -m pip uninstall -y gamdl || true
-        python -m pip install --no-cache-dir --force-reinstall \
-          "git+https://github.com/glomatico/gamdl.git@main"
-        echo -n "✅ gamdl version: "; gamdl --version
+      with: { python-version: "3.12" }
+    - name: Install gamdl
+      run: python -m pip install -U pip gamdl
 
-    # 2️⃣ 安裝 FFmpeg（macOS runner 已不再預裝）
+    # 2. macOS runner 補 FFmpeg
     - name: Install FFmpeg
       run: |
         brew update --quiet
         brew install ffmpeg
 
-    # 3️⃣ 給 FFmpeg 加 wrapper：自動開滿 CPU 執行緒
-    - name: Patch FFmpeg for max threads
-      run: |
-        REAL=$(which ffmpeg)
-        sudo mv "$REAL" /usr/local/bin/ffmpeg-real
-        printf '#!/usr/bin/env bash\n/usr/local/bin/ffmpeg-real -threads $(sysctl -n hw.ncpu) "$@"\n' \
-          | sudo tee /usr/local/bin/ffmpeg >/dev/null
-        sudo chmod +x /usr/local/bin/ffmpeg
-
-    # 4️⃣ 還原 cookies.txt
+    # 4. 還原 cookies.txt
     - name: Restore cookies.txt
-      env:
-        AM_COOKIES_B64: ${{ secrets.AM_COOKIES_B64 }}
-      run: |
-        echo "$AM_COOKIES_B64" | base64 --decode > cookies.txt
+      env: { AM_COOKIES_B64: ${{ secrets.AM_COOKIES_B64 }} }
+      run: echo "$AM_COOKIES_B64" | base64 --decode > cookies.txt
 
-    # 5️⃣ 下載：albums-only + 無互動 + 另存封面
+    # 5. 下載 —— albums-only + no-prompt（用環境變量）
     - name: Download with gamdl
       run: |
         mkdir -p downloads
         read -ra URLS <<< "${{ github.event.inputs.urls }}"
         for u in "${URLS[@]}"; do
-          gamdl -o downloads \
-                --no-prompt \
-                --save-cover \
-                "$u"
+          GAMDL_ARTIST_TYPE=albums \
+          GAMDL_DISABLE_PROMPT=1 \
+          gamdl -o downloads -s "$u"
         done
 
-    # 6️⃣ rclone 配置
+    # 6. rclone 設定
     - uses: AnimMouse/setup-rclone@v1
       with:
         rclone_config: ${{ secrets.RCLONE_CONFIG }}
         disable_base64: true
 
-    # 7️⃣ 上傳到 OneDrive
+    # 7. 上傳到 OneDrive
     - name: Upload to OneDrive
       run: |
         rclone copy downloads "od:${DEST_DIR}" \
