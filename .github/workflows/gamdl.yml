@@ -1,0 +1,56 @@
+name: gamdl
+
+on:
+  workflow_dispatch:                # ⬅ 手動觸發＋表單
+    inputs:
+      urls:
+        description: "Apple Music 連結（空格分隔）"
+        required:  true
+      dest_dir:
+        description: "上傳到 od: 的子目錄，例如 music/"
+        required:  true
+
+jobs:
+  gamdl_to_onedrive:
+    runs-on: macos-latest           # 💡可改 ubuntu-22.04，但需自行裝 ffmpeg
+
+    steps:
+
+      # 1️⃣ 取用程式碼（可放空 repo，也可以是你的腳本/設定）
+      - uses: actions/checkout@v4
+
+      # 2️⃣ 裝 Python + gamdl + ffmpeg
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: |
+          python -m pip install -U pip gamdl ffmpeg-static
+
+      # 3️⃣ 還原 cookies.txt（從 Secrets 來）
+      - name: Restore cookies.txt
+        env:
+          AM_COOKIES_B64: ${{ secrets.AM_COOKIES_B64 }}
+        run: |
+          echo "$AM_COOKIES_B64" | base64 --decode > cookies.txt
+
+      # 4️⃣ 下載（把使用者表單裡的 URL 逐條丟給 gamdl）
+      - name: Download with gamdl
+        run: |
+          mkdir downloads
+          read -ra ARR <<< "${{ github.event.inputs.urls }}"
+          for u in "${ARR[@]}"; do
+            gamdl -f downloads "$u"
+          done
+
+      # 5️⃣ 安裝 rclone，寫入純文字 rclone.conf
+      - uses: AnimMouse/setup-rclone@v1
+        with:
+          rclone_config: ${{ secrets.RCLONE_CONFIG }}   # 💡純文字就設 disable_base64: true
+          disable_base64: true
+
+      # 6️⃣ 上傳到 OneDrive
+      - name: Upload to OneDrive
+        run: |
+          rclone copy downloads "od:${{ github.event.inputs.dest_dir }}" \
+                 --transfers 32 --checkers 32 --fast-list \
+                 --progress --stats 30s
