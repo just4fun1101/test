@@ -30,8 +30,10 @@ jobs:
 
     # 4. 還原 cookies.txt
     - name: Restore cookies.txt
-      env: { AM_COOKIES_B64: ${{ secrets.AM_COOKIES_B64 }} }
-      run: echo "$AM_COOKIES_B64" | base64 --decode > cookies.txt
+      env:
+        AM_COOKIES_B64: ${{ secrets.AM_COOKIES_B64 }}
+      run: |
+        echo "$AM_COOKIES_B64" | base64 --decode > cookies.txt
 
     # 5. 下載 —— albums-only + no-prompt（用環境變量）
     - name: Download with gamdl
