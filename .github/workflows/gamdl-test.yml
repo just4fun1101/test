@@ -28,14 +28,14 @@ jobs:
         brew update --quiet
         brew install ffmpeg
 
-    # 4. 還原 cookies.txt
+    # 3. 還原 cookies.txt
     - name: Restore cookies.txt
       env:
         AM_COOKIES_B64: ${{ secrets.AM_COOKIES_B64 }}
       run: |
         echo "$AM_COOKIES_B64" | base64 --decode > cookies.txt
 
-    # 5. 下載 —— albums-only + no-prompt（用環境變量）
+    # 4. 下載 —— albums-only + no-prompt（用環境變量）
     - name: Download with gamdl
       run: |
         mkdir -p downloads
@@ -46,13 +46,13 @@ jobs:
           gamdl -o downloads -s "$u"
         done
 
-    # 6. rclone 設定
+    # 5. rclone 設定
     - uses: AnimMouse/setup-rclone@v1
       with:
         rclone_config: ${{ secrets.RCLONE_CONFIG }}
         disable_base64: true
 
-    # 7. 上傳到 OneDrive
+    # 6. 上傳到 OneDrive
     - name: Upload to OneDrive
       run: |
         rclone copy downloads "od:${DEST_DIR}" \
