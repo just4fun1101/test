@@ -19,7 +19,7 @@ jobs:
     - uses: actions/setup-python@v5
       with: { python-version: "3.12" }
     - name: Install gamdl
-      run: python -m pip install -U pip gamdl
+      run: python -m pip install -U "git+https://github.com/glomatico/gamdl.git@main"
 
     # 3 確保 ffmpeg
     - name: Ensure ffmpeg
