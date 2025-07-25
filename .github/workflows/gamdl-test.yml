@@ -21,15 +21,17 @@ jobs:
     - name: Install gamdl
       run: python -m pip install -U pip gamdl
 
-    # 3️⃣ 確保 ffmpeg
+    # 3 確保 ffmpeg
     - name: Ensure ffmpeg
       run: |
         command -v ffmpeg || brew install ffmpeg
 
-    # 3. cookies.txt
+    # 4. cookies.txt
     - name: Restore cookies.txt
-      env: { AM_COOKIES_B64: ${{ secrets.AM_COOKIES_B64 }} }
-      run: echo "$AM_COOKIES_B64" | base64 --decode > cookies.txt
+      env:
+        AM_COOKIES_B64: ${{ secrets.AM_COOKIES_B64 }}
+      run: |
+        echo "$AM_COOKIES_B64" | base64 --decode > cookies.txt
 
     # 4. 下載 — albums-only + no-prompt + save-cover + mp4box
     - name: Download with gamdl
