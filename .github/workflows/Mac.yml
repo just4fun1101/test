@@ -57,7 +57,7 @@ jobs:
             --fast-list \
             --max-backlog=999999 \
             --buffer-size=1G \
-            --multi-thread-streams=8 \
+            --multi-thread-streams=12 \
             --multi-thread-cutoff=64M \
             --drive-chunk-size=128M \
             --onedrive-chunk-size=160M \
