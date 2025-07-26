@@ -52,12 +52,12 @@ jobs:
           echo "📁 目标目录 = $DST"
 
           rclone copy "$SRC" "$DST" \
-            --transfers=64 \
+            --transfers=16 \
             --checkers=64 \
             --fast-list \
             --max-backlog=999999 \
             --buffer-size=1G \
-            --multi-thread-streams=16 \
+            --multi-thread-streams=8 \
             --multi-thread-cutoff=64M \
             --drive-chunk-size=128M \
             --onedrive-chunk-size=160M \
