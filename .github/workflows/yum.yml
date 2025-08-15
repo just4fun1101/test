@@ -1,51 +1,54 @@
-name: YTMusic → OneDrive (manual rclone.conf)
+name: YTMusic → OneDrive (gytmdl + rclone)
 
 on:
   workflow_dispatch:
     inputs:
       urls:
-        description: "每行一个 YTMusic 链接"
+        description: "每行一个 YTMusic 链接（Song/Album/Playlist/Artist）"
         required: true
       dest_dir:
-        description: "上传到 od: 目标目录"
+        description: "上传到 od: 下的目标目录，例如 Music/CleoSol/"
         required: true
       itag:
-        description: "音质 itag（141/774/140...）"
+        description: "音质 itag（141=AAC256，774=Opus256，140=AAC128）"
         required: false
-        default: "774"
+        default: "141"
 
 jobs:
   run:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install deps
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg aria2 rclone python3-pip
-          python3 -m pip install --upgrade pip
-          pip3 install --upgrade gytmdl
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
 
-      - name: Write cookies.txt, urls.txt, rclone.conf
+      - name: Install FFmpeg
+        run: |
+          brew update
+          brew install ffmpeg
+
+      - name: Install gytmdl
+        run: |
+          python -m pip install --upgrade pip
+          pip install --upgrade gytmdl
+
+      - name: Write cookies.txt & urls.txt
         shell: bash
         env:
           YTM_COOKIES: ${{ secrets.YTM_COOKIES }}
-          RCLONE_CONFIG_TEXT: ${{ secrets.RCLONE_CONFIG }}
         run: |
-          # cookies
+          # 写 cookies.txt（保留换行）
           cat > cookies.txt <<'EOF'
           $YTM_COOKIES
           EOF
+          # 写 urls.txt（支持多行）
           printf '%s\n' "${{ github.event.inputs.urls }}" > urls.txt
-          # rclone.conf
-          mkdir -p ~/.config/rclone
-          cat > ~/.config/rclone/rclone.conf <<'EOF'
-          $RCLONE_CONFIG_TEXT
-          EOF
-          chmod 600 ~/.config/rclone/rclone.conf
 
-      - name: Download with gytmdl
+      - name: Download with gytmdl (no aria2c)
         shell: bash
         env:
           PO_TOKEN: ${{ secrets.YTM_PO_TOKEN }}
@@ -56,13 +59,34 @@ jobs:
           if [ -n "${PO_TOKEN}" ]; then
             PO_ARG="--po-token \"${PO_TOKEN}\""
           fi
-          eval gytmdl -r urls.txt -c cookies.txt -i "${ITAG}" --download-mode aria2c --save-cover \
-              -o downloads --template-folder "{album_artist}/{album}" --template-file "{track:02d} {title}" ${PO_ARG}
+          # 默认下载器是 ytdlp（不使用 aria2c）
+          eval gytmdl \
+            -r urls.txt \
+            -c cookies.txt \
+            -i "${ITAG}" \
+            --save-cover \
+            -o downloads \
+            --template-folder "{album_artist}/{album}" \
+            --template-file "{track:02d} {title}" \
+            ${PO_ARG}
+
+      - name: Setup rclone (plain text config)
+        uses: AnimMouse/setup-rclone@v1
+        with:
+          rclone_config: ${{ secrets.RCLONE_CONFIG }}
+          disable_base64: true
 
       - name: Upload to OneDrive
         run: |
-          rclone copy "downloads/" "od:${{ github.event.inputs.dest_dir }}" \
-            --transfers=32 --checkers=64 --fast-list \
-            --onedrive-chunk-size=60M --buffer-size=1G \
-            --multi-thread-streams=8 --multi-thread-cutoff=16M \
-            --progress --stats=30s
+          SRC="downloads/"
+          DST="od:${{ github.event.inputs.dest_dir }}"
+          rclone copy "$SRC" "$DST" \
+            --transfers=32 \
+            --checkers=64 \
+            --fast-list \
+            --onedrive-chunk-size=60M \
+            --buffer-size=1G \
+            --multi-thread-streams=8 \
+            --multi-thread-cutoff=16M \
+            --progress \
+            --stats=30s
