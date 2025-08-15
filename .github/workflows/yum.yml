@@ -40,19 +40,19 @@ jobs:
         env:
           YTM_COOKIES_B64: ${{ secrets.YTM_COOKIES_B64 }}
         run: |
-          python - <<'PY'
+          python3 -c "
 import os
 import base64
 
 # Get the base64 encoded cookies
 b64_cookie = os.getenv('YTM_COOKIES_B64', '').strip()
 if not b64_cookie:
-    raise SystemExit("YTM_COOKIES_B64 is empty")
+    raise SystemExit('YTM_COOKIES_B64 is empty')
 
 # Decode the base64 content and write it to cookies.txt
 with open('cookies.txt', 'wb') as f:
     f.write(base64.b64decode(b64_cookie))
-PY
+          "
           # Check if cookies.txt was created
           wc -l cookies.txt || true
 
