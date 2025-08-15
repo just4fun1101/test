@@ -1,0 +1,68 @@
+name: YTMusic → OneDrive (manual rclone.conf)
+
+on:
+  workflow_dispatch:
+    inputs:
+      urls:
+        description: "每行一个 YTMusic 链接"
+        required: true
+      dest_dir:
+        description: "上传到 od: 目标目录"
+        required: true
+      itag:
+        description: "音质 itag（141/774/140...）"
+        required: false
+        default: "774"
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg aria2 rclone python3-pip
+          python3 -m pip install --upgrade pip
+          pip3 install --upgrade gytmdl
+
+      - name: Write cookies.txt, urls.txt, rclone.conf
+        shell: bash
+        env:
+          YTM_COOKIES: ${{ secrets.YTM_COOKIES }}
+          RCLONE_CONFIG_TEXT: ${{ secrets.RCLONE_CONFIG }}
+        run: |
+          # cookies
+          cat > cookies.txt <<'EOF'
+          $YTM_COOKIES
+          EOF
+          printf '%s\n' "${{ github.event.inputs.urls }}" > urls.txt
+          # rclone.conf
+          mkdir -p ~/.config/rclone
+          cat > ~/.config/rclone/rclone.conf <<'EOF'
+          $RCLONE_CONFIG_TEXT
+          EOF
+          chmod 600 ~/.config/rclone/rclone.conf
+
+      - name: Download with gytmdl
+        shell: bash
+        env:
+          PO_TOKEN: ${{ secrets.YTM_PO_TOKEN }}
+        run: |
+          mkdir -p downloads
+          ITAG="${{ github.event.inputs.itag }}"
+          PO_ARG=""
+          if [ -n "${PO_TOKEN}" ]; then
+            PO_ARG="--po-token \"${PO_TOKEN}\""
+          fi
+          eval gytmdl -r urls.txt -c cookies.txt -i "${ITAG}" --download-mode aria2c --save-cover \
+              -o downloads --template-folder "{album_artist}/{album}" --template-file "{track:02d} {title}" ${PO_ARG}
+
+      - name: Upload to OneDrive
+        run: |
+          rclone copy "downloads/" "od:${{ github.event.inputs.dest_dir }}" \
+            --transfers=32 --checkers=64 --fast-list \
+            --onedrive-chunk-size=60M --buffer-size=1G \
+            --multi-thread-streams=8 --multi-thread-cutoff=16M \
+            --progress --stats=30s
