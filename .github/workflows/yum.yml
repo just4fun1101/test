@@ -16,40 +16,47 @@ on:
 
 jobs:
   run:
-    runs-on: macos-latest  # 可以根据需要改为 ubuntu-latest 或其它
+    runs-on: macos-latest  # Can be ubuntu-latest or other if needed
 
     steps:
-      # Checkout 代码
+      # Checkout code
       - uses: actions/checkout@v4
 
-      # 设置 Python 环境
+      # Set up Python environment
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      # 安装 gytmdl 和 ffmpeg
+      # Install gytmdl & ffmpeg
       - name: Install gytmdl & ffmpeg
         run: |
           python -m pip install --upgrade pip
           pip install --upgrade gytmdl
-          brew install ffmpeg  # Ubuntu 用 apt-get install -y ffmpeg
+          brew install ffmpeg  # For Ubuntu, use apt-get install -y ffmpeg
 
-      # 从 base64 解码 cookies.txt
+      # Write cookies.txt from base64
       - name: Write cookies.txt from base64
         env:
           YTM_COOKIES_B64: ${{ secrets.YTM_COOKIES_B64 }}
         run: |
           python - <<'PY'
-import os, base64
-b = os.environ.get('YTM_COOKIES_B64','').strip()
-if not b:
-    raise SystemExit("YTM_COOKIES_B64 is empty")
-open('cookies.txt','wb').write(base64.b64decode(b))
-PY
-          wc -l cookies.txt || true  # 确保文件存在且有内容
+import os
+import base64
 
-      # 下载音乐
+# Get the base64 encoded cookies
+b64_cookie = os.getenv('YTM_COOKIES_B64', '').strip()
+if not b64_cookie:
+    raise SystemExit("YTM_COOKIES_B64 is empty")
+
+# Decode the base64 content and write it to cookies.txt
+with open('cookies.txt', 'wb') as f:
+    f.write(base64.b64decode(b64_cookie))
+PY
+          # Check if cookies.txt was created
+          wc -l cookies.txt || true
+
+      # Download with gytmdl
       - name: Download with gytmdl
         env:
           ITAG: ${{ github.event.inputs.itag }}
@@ -60,7 +67,7 @@ PY
                  --template-folder "{album_artist}/{album}" \
                  --template-file "{track:02d} {title}"
 
-      # 配置 rclone，上传文件到 OneDrive
+      # Set up rclone and upload to OneDrive
       - name: Setup rclone (plain text config)
         uses: AnimMouse/setup-rclone@v1
         with:
@@ -84,6 +91,6 @@ PY
             --progress \
             --stats=30s
 
-      # 上传后检查
+      # Post-upload check
       - name: List remote target (post-check)
         run: rclone ls "od:${{ github.event.inputs.dest_dir }}" | head -n 50 || true
