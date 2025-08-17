@@ -1,46 +1,48 @@
-name: Direct download ➜ upload to od
+name: Direct download ➜ rename to .mp4 ➜ upload to od
 
 on:
   workflow_dispatch:
     inputs:
       file_url:
-        description: '直链地址（可写多行，每行一个 URL）'
+        description: '直链（可多行，每行一个 URL）'
         required: true
       dest_path:
-        description: '上传到 od: 的子目录，例如 movie/2025/；留空=根目录'
+        description: '上传到 od: 的子目录；留空 = 根目录'
         required: true
         default: ''
 
 jobs:
   download_and_upload:
-    runs-on: ubuntu-latest            # 如果更喜欢 macOS，把这行改成 macos-latest
+    runs-on: ubuntu-latest
 
     env:
-      RCLONE_STATS: 1s               # 每 1 s 打印一次进度
+      # rclone 进度 & 性能参数
+      RCLONE_STATS: 1s
       TRANSFERS:   32
       CHECKERS:    32
       BUFFER_SIZE: 1G
       THREAD_STREAMS: 8
       THREAD_CUTOFF: 16M
-      DRIVE_CHUNK_SIZE: 256M         # OneDrive/Google Drive 类用得到
+      DRIVE_CHUNK_SIZE: 256M
       ONEDRIVE_CHUNK_SIZE: 60M
 
     steps:
-    # ---------- 检出仓库（如果你用不到，可以删） ----------
+    # ---------- 0. 检出仓库（可删除） ----------
     - name: Checkout
       uses: actions/checkout@v4
 
-    # ---------- 安装系统依赖 ----------
-    - name: Install system deps (aria2)
-      run: sudo apt-get update && sudo apt-get install -y aria2
+    # ---------- 1. 安装 aria2 ----------
+    - name: Install aria2
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y aria2
 
-    # ---------- 下载直链 ----------
+    # ---------- 2. 下载直链 ----------
     - name: Download file(s)
       run: |
         mkdir -p downloads
-        echo "${{ github.event.inputs.file_url }}" > /tmp/urls.txt
-        echo "⬇️  Download list:"
-        cat /tmp/urls.txt
+        printf '%s\n' "${{ github.event.inputs.file_url }}" > /tmp/urls.txt
+        echo "⬇️  Download list:" && cat /tmp/urls.txt
 
         aria2c --continue=true \
                --max-connection-per-server=16 \
@@ -48,17 +50,29 @@ jobs:
                --dir=downloads \
                --input-file=/tmp/urls.txt
 
-        echo "🎉 Downloads done"
-        ls -lh downloads
+        echo "🎉 Downloads done" && ls -lh downloads
 
-    # ---------- 安装并加载 rclone（纯文本 config） ----------
+    # ---------- 3. 批量改后缀为 .mp4 ----------
+    - name: Rename files to .mp4 (no re-encode)
+      run: |
+        cd downloads
+        shopt -s nullglob
+        for f in *; do
+          [[ -d "$f" ]] && continue          # 跳过目录
+          [[ "$f" == *.mp4 ]] && continue    # 原本就是 mp4 的跳过
+          mv -- "$f" "${f%.*}.mp4"
+          echo "📝 $f ➜ ${f%.*}.mp4"
+        done
+        echo "Finished renaming:" && ls -lh
+
+    # ---------- 4. 安装并加载 rclone（纯文本 config） ----------
     - name: Setup rclone (plain text)
       uses: AnimMouse/setup-rclone@v1
       with:
-        rclone_config: ${{ secrets.RCLONE_CONFIG }}   # 直接粘贴 rclone.conf 内容
+        rclone_config: ${{ secrets.RCLONE_CONFIG }}
         disable_base64: true
 
-    # ---------- 上传到 OneDrive (od:) ----------
+    # ---------- 5. 上传到 OneDrive (od:) ----------
     - name: Upload via rclone
       run: |
         SRC_DIR="downloads"
