@@ -4,70 +4,75 @@ on:
   workflow_dispatch:
     inputs:
       file_url:
-        description: '直链（可多行，每行一个 URL）'
+        description: '直链地址（可写多行，每行一个 URL）'
         required: true
       dest_path:
-        description: '上传到 od: 的子目录，例如 movie/2025/'
+        description: '上传到 od: 的子目录，例如 movie/2025/；留空=根目录'
         required: true
         default: ''
 
 jobs:
   download_and_upload:
-    runs-on: macos-latest          # 若想换 Linux，把这一行改成 ubuntu-latest
+    runs-on: ubuntu-latest            # 如果更喜欢 macOS，把这行改成 macos-latest
 
     env:
-      # 上传性能参数，可按需调整
-      TRANSFERS: 32
-      CHECKERS: 32
+      RCLONE_STATS: 1s               # 每 1 s 打印一次进度
+      TRANSFERS:   32
+      CHECKERS:    32
       BUFFER_SIZE: 1G
       THREAD_STREAMS: 8
       THREAD_CUTOFF: 16M
-      DRIVE_CHUNK_SIZE: 256M
-      STATS: 30s
+      DRIVE_CHUNK_SIZE: 256M         # OneDrive/Google Drive 类用得到
+      ONEDRIVE_CHUNK_SIZE: 60M
 
     steps:
-    # ---------- （可选）检出仓库 ----------
-    - name: Checkout (optional)
+    # ---------- 检出仓库（如果你用不到，可以删） ----------
+    - name: Checkout
       uses: actions/checkout@v4
 
-    # ---------- 安装 rclone ----------
-    - name: Install rclone
-      run: |
-        curl -fsSL https://rclone.org/install.sh | sudo bash
-        rclone version
-
-    # ---------- 解码 rclone 配置 (Base64) ----------
-    - name: Decode rclone.conf (base64)
-      env:
-        RCLONE_CONFIG_BASE64: ${{ secrets.RCLONE_CONFIG }}
-      run: |
-        mkdir -p ~/.config/rclone
-        echo "$RCLONE_CONFIG_BASE64" | base64 -d > ~/.config/rclone/rclone.conf
-        echo "✅ rclone.conf decoded"
+    # ---------- 安装系统依赖 ----------
+    - name: Install system deps (aria2)
+      run: sudo apt-get update && sudo apt-get install -y aria2
 
     # ---------- 下载直链 ----------
     - name: Download file(s)
       run: |
         mkdir -p downloads
         echo "${{ github.event.inputs.file_url }}" > /tmp/urls.txt
-        aria2c --continue=true                 \
-               --max-connection-per-server=16  \
-               --split=16                      \
-               --dir=downloads                 \
+        echo "⬇️  Download list:"
+        cat /tmp/urls.txt
+
+        aria2c --continue=true \
+               --max-connection-per-server=16 \
+               --split=16 \
+               --dir=downloads \
                --input-file=/tmp/urls.txt
+
+        echo "🎉 Downloads done"
         ls -lh downloads
 
-    # ---------- 上传到 od ----------
+    # ---------- 安装并加载 rclone（纯文本 config） ----------
+    - name: Setup rclone (plain text)
+      uses: AnimMouse/setup-rclone@v1
+      with:
+        rclone_config: ${{ secrets.RCLONE_CONFIG }}   # 直接粘贴 rclone.conf 内容
+        disable_base64: true
+
+    # ---------- 上传到 OneDrive (od:) ----------
     - name: Upload via rclone
       run: |
+        SRC_DIR="downloads"
         DEST_DIR="od:${{ github.event.inputs.dest_path }}"
-        echo "📤 Uploading to $DEST_DIR"
-        rclone copy downloads "$DEST_DIR" \
-          --transfers   "$TRANSFERS" \
-          --checkers    "$CHECKERS" \
-          --buffer-size "$BUFFER_SIZE" \
-          --multi-thread-streams "$THREAD_STREAMS" \
-          --multi-thread-cutoff  "$THREAD_CUTOFF" \
-          --drive-chunk-size     "$DRIVE_CHUNK_SIZE" \
-          --stats       "$STATS" \
-          --progress
+        echo "📤 Copying $SRC_DIR ➜ $DEST_DIR"
+
+        rclone copy "$SRC_DIR" "$DEST_DIR" \
+          --transfers             "$TRANSFERS" \
+          --checkers              "$CHECKERS" \
+          --buffer-size           "$BUFFER_SIZE" \
+          --multi-thread-streams  "$THREAD_STREAMS" \
+          --multi-thread-cutoff   "$THREAD_CUTOFF" \
+          --drive-chunk-size      "$DRIVE_CHUNK_SIZE" \
+          --onedrive-chunk-size   "$ONEDRIVE_CHUNK_SIZE" \
+          --fast-list \
+          --progress \
+          --stats=$RCLONE_STATS
