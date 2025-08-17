@@ -1,4 +1,4 @@
-name: Direct download ➜ rename to .mp4 ➜ upload to od
+name: Direct download.mp4 ➜ upload to od
 
 on:
   workflow_dispatch:
@@ -27,7 +27,7 @@ jobs:
       ONEDRIVE_CHUNK_SIZE: 60M
 
     steps:
-    # ---------- 0. 检出仓库（可删除） ----------
+    # ---------- 0. （可选）检出仓库 ----------
     - name: Checkout
       uses: actions/checkout@v4
 
@@ -41,7 +41,7 @@ jobs:
     - name: Download file(s)
       run: |
         mkdir -p downloads
-        printf '%s\n' "${{ github.event.inputs.file_url }}" > /tmp/urls.txt
+        printf '%s\n' '${{ github.event.inputs.file_url }}' > /tmp/urls.txt
         echo "⬇️  Download list:" && cat /tmp/urls.txt
 
         aria2c --continue=true \
@@ -52,18 +52,27 @@ jobs:
 
         echo "🎉 Downloads done" && ls -lh downloads
 
-    # ---------- 3. 批量改后缀为 .mp4 ----------
-    - name: Rename files to .mp4 (no re-encode)
+    # ---------- 3. 随机改名为 .mp4 ----------
+    - name: Rename to random .mp4
       run: |
         cd downloads
         shopt -s nullglob
-        for f in *; do
-          [[ -d "$f" ]] && continue          # 跳过目录
-          [[ "$f" == *.mp4 ]] && continue    # 原本就是 mp4 的跳过
-          mv -- "$f" "${f%.*}.mp4"
-          echo "📝 $f ➜ ${f%.*}.mp4"
+        for src in *; do
+          [[ -d "$src" ]] && continue     # 跳过子目录
+          # 生成随机 UUID（全小写）
+          while :; do
+            new="$(uuidgen | tr 'A-Z' 'a-z').mp4"
+            [[ ! -e "$new" ]] && break
+          done
+          # 若不是 .mp4，先简单改后缀
+          if [[ "$src" != *.mp4 ]]; then
+            mv -- "$src" "${src%.*}.mp4"
+            src="${src%.*}.mp4"
+          fi
+          mv -- "$src" "$new"
+          echo "📝 $src  ➜  $new"
         done
-        echo "Finished renaming:" && ls -lh
+        echo "📂 Result:" && ls -lh
 
     # ---------- 4. 安装并加载 rclone（纯文本 config） ----------
     - name: Setup rclone (plain text)
