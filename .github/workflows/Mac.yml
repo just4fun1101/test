@@ -27,27 +27,11 @@ jobs:
           disable_base64: true
 
       # =========== 释放磁盘空间（可按需增删） ===========
-      - name: 释放磁盘空间
-        shell: bash
-        run: |
-          echo "🧹 Cleaning up to free disk space..."
-          # .NET SDK（~6 GB）
-          sudo rm -rf /usr/local/share/dotnet || true
-          # Android SDK / Cmdline tools（~5 GB）
-          sudo rm -rf "$(brew --prefix)/share/android-commandlinetools" || true
-          sudo rm -rf /usr/local/lib/android || true
-          # Haskell / GHC（~1 GB）
-          sudo rm -rf /opt/ghc || true
-          # CodeQL & 旧版 Xcode（若不用编译，可再删 ~8‑10 GB）
-          sudo rm -rf /usr/local/lib/codeql || true
-          sudo rm -rf /Applications/Xcode*.app || true
-          # 查看剩余空间
-          df -h /
 
       - name: 高速拷贝 `${{ github.event.inputs.src_path }}` ➜ `od:${{ github.event.inputs.dst_path }}`
         run: |
           SRC="pik:${{ github.event.inputs.src_path }}"
-          DST="od:${{ github.event.inputs.dst_path }}"
+          DST="1:${{ github.event.inputs.dst_path }}"
           echo "📁 源目录 = $SRC"
           echo "📁 目标目录 = $DST"
 
