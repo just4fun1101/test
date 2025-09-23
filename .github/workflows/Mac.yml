@@ -31,7 +31,7 @@ jobs:
       - name: 高速拷贝 `${{ github.event.inputs.src_path }}` ➜ `od:${{ github.event.inputs.dst_path }}`
         run: |
           SRC="pik:${{ github.event.inputs.src_path }}"
-          DST="1:${{ github.event.inputs.dst_path }}"
+          DST="od:${{ github.event.inputs.dst_path }}"
           echo "📁 源目录 = $SRC"
           echo "📁 目标目录 = $DST"
 
