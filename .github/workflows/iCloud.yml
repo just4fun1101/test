@@ -1,0 +1,51 @@
+name: pikpak-macos
+
+on:
+  workflow_dispatch:
+    inputs:
+      src_path:
+        description: '源目录，相对于 new: Remote，例如 myFolder/ （注意带斜杠）'
+        required: true
+        default: ''
+      dst_path:
+        description: '目标目录，相对于 od: Remote，例如 backup/ （注意带斜杠）'
+        required: true
+        default: ''
+
+jobs:
+  transfer-macos:
+    runs-on: macos-latest   # macOS 14 (Sonoma) Runner
+
+    steps:
+      - name: Checkout 代码
+        uses: actions/checkout@v3
+
+      - name: 安装并加载 rclone（纯文本 config）
+        uses: AnimMouse/setup-rclone@v1
+        with:
+          rclone_config: ${{ secrets.RCLONE_CONFIG }}  # 直接粘贴纯文本 rclone.conf
+          disable_base64: true
+
+      # =========== 释放磁盘空间（可按需增删） ===========
+
+      - name: 高速拷贝 `${{ github.event.inputs.src_path }}` ➜ `1:${{ github.event.inputs.dst_path }}`
+        run: |
+          SRC="pik:${{ github.event.inputs.src_path }}"
+          DST="1:${{ github.event.inputs.dst_path }}"
+          echo "📁 源目录 = $SRC"
+          echo "📁 目标目录 = $DST"
+
+          rclone copy "$SRC" "$DST" \
+            --transfers=16 \
+            --checkers=64 \
+            --fast-list \
+            --max-backlog=999999 \
+            --buffer-size=1G \
+            --multi-thread-streams=12 \
+            --multi-thread-cutoff=64M \
+            --drive-chunk-size=128M \
+            --onedrive-chunk-size=160M \
+            --retries=3 \
+            --retries-sleep=10s \
+            --progress \
+            --stats=1s
