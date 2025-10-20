@@ -1,12 +1,3 @@
-name: Bunkr-OneDrive
-
-on:
-  workflow_dispatch:
-    inputs:
-      bunkr_url:
-        description: '要下载的 Bunkr 专辑或文件 URL'
-        required: true
-
 jobs:
   bunkr_to_rclone:
     runs-on: macos-latest
@@ -18,10 +9,10 @@ jobs:
       - name: Checkout 代码
         uses: actions/checkout@v3
 
-      - name: 安装系统依赖
+      - name: 安装系统依赖 (macOS)
         run: |
-          sudo apt-get update
-          sudo apt-get install -y python3-venv git
+          brew update
+          brew install python git
 
       - name: 下载并运行 BunkrDownloader
         run: |
@@ -30,8 +21,8 @@ jobs:
 
           python3 -m venv venv
           source venv/bin/activate
-          pip install --upgrade pip
-          pip install -r requirements.txt
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r requirements.txt
 
           # 下载到 BunkrDownloader/Downloads/
           python3 downloader.py "${{ github.event.inputs.bunkr_url }}" --disable-ui
@@ -61,6 +52,3 @@ jobs:
             --onedrive-chunk-size=60M \
             --progress \
             --stats=$RCLONE_STATS
-        # 如果 rclone.conf 使用了密码，请取消以下注释
-        # env:
-        #   RCLONE_CONFIG_PASS: ${{ secrets.RCLONE_CONFIG_PASS }}
