@@ -7,16 +7,15 @@ on:
         description: "Bunkr album or file URL"
         required: true
         type: string
-  # Optional additional triggers:
-  # push:
-  #   branches: [ main ]
 
 jobs:
   bunkr_to_rclone:
     runs-on: macos-latest
-
     env:
+      TERM: xterm-256color
       RCLONE_STATS: 1s
+      HOMEBREW_NO_COLOR: 1
+      HOMEBREW_NO_AUTO_UPDATE: 1
 
     steps:
       - name: Checkout
@@ -24,12 +23,13 @@ jobs:
 
       - name: Install dependencies (macOS)
         run: |
-          brew update
           brew install python git || true
           python3 --version
           git --version
 
-      - name: Download and run BunkrDownloader
+      - name: Download and run BunkrDownloader (non-interactive)
+        env:
+          TERM: xterm-256color
         run: |
           git clone https://github.com/Lysagxra/BunkrDownloader.git
           cd BunkrDownloader
@@ -58,5 +58,5 @@ jobs:
             --buffer-size=1G \
             --drive-chunk-size=256M \
             --onedrive-chunk-size=60M \
-            --progress \
+            --stats-one-line \
             --stats="${RCLONE_STATS}"
