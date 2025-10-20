@@ -9,7 +9,7 @@ on:
 
 jobs:
   bunkr_to_rclone:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
 
     env:
       RCLONE_STATS: 1s
