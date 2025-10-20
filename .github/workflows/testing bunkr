@@ -1,0 +1,81 @@
+name: CyberdropBunkr-to-OneDrive
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_url:
+        description: 'Album/File URL to download'
+        required: true
+      dest_path:
+        description: 'Destination path under od: (e.g., "lil vids")'
+        required: false
+        default: 'lil vids'
+
+jobs:
+  download_and_upload:
+    runs-on: ubuntu-latest
+
+    env:
+      RCLONE_STATS: 1s
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-venv git
+
+      - name: Clone CyberdropBunkrDownloader and download
+        run: |
+          set -e
+          git clone https://github.com/PaaaulZ/CyberdropBunkrDownloader.git
+          cd CyberdropBunkrDownloader
+
+          python3 -m venv venv
+          source venv/bin/activate
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+          # Create a known output folder; update if the project uses a different flag/path.
+          mkdir -p Downloads
+
+          INPUT_URL="${{ github.event.inputs.source_url }}"
+          echo "Downloading from: $INPUT_URL"
+
+          # TODO: Replace the command below with the correct CLI for CyberdropBunkrDownloader.
+          # Example pattern (adjust to the repo's README):
+          # python3 main.py "$INPUT_URL" --output "Downloads" --disable-ui
+          python3 main.py "$INPUT_URL"
+
+      - name: Setup rclone (plain-text config from secret)
+        uses: AnimMouse/setup-rclone@v1
+        with:
+          rclone_config: ${{ secrets.RCLONE_CONFIG }}
+          disable_base64: true
+
+      - name: Upload to od:
+        env:
+          DEST_SUBPATH: ${{ github.event.inputs.dest_path }}
+        run: |
+          SRC_DIR="CyberdropBunkrDownloader/Downloads"
+          DEST_DIR="od:${DEST_SUBPATH}"
+
+          echo "Source: $SRC_DIR"
+          echo "Destination: $DEST_DIR"
+
+          rclone copy "$SRC_DIR" "$DEST_DIR" \
+            --transfers=32 \
+            --checkers=32 \
+            --fast-list \
+            --multi-thread-streams=8 \
+            --multi-thread-cutoff=16M \
+            --buffer-size=1G \
+            --drive-chunk-size=256M \
+            --onedrive-chunk-size=60M \
+            --progress \
+            --stats=$RCLONE_STATS
+        # If your rclone.conf is protected with a password, uncomment:
+        # env:
+        #   RCLONE_CONFIG_PASS: ${{ secrets.RCLONE_CONFIG_PASS }}
