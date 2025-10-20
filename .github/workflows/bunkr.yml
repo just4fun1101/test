@@ -1,3 +1,16 @@
+name: Bunkr to Rclone (macOS)
+
+on:
+  workflow_dispatch:
+    inputs:
+      bunkr_url:
+        description: "Bunkr album or file URL"
+        required: true
+        type: string
+  # Optional additional triggers:
+  # push:
+  #   branches: [ main ]
+
 jobs:
   bunkr_to_rclone:
     runs-on: macos-latest
@@ -6,41 +19,36 @@ jobs:
       RCLONE_STATS: 1s
 
     steps:
-      - name: Checkout 代码
-        uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: 安装系统依赖 (macOS)
+      - name: Install dependencies (macOS)
         run: |
           brew update
-          brew install python git
+          brew install python git || true
+          python3 --version
+          git --version
 
-      - name: 下载并运行 BunkrDownloader
+      - name: Download and run BunkrDownloader
         run: |
           git clone https://github.com/Lysagxra/BunkrDownloader.git
           cd BunkrDownloader
-
           python3 -m venv venv
           source venv/bin/activate
           python3 -m pip install --upgrade pip
           python3 -m pip install -r requirements.txt
-
-          # 下载到 BunkrDownloader/Downloads/
           python3 downloader.py "${{ github.event.inputs.bunkr_url }}" --disable-ui
 
-      - name: 安装并加载 Rclone（纯文本 config）
+      - name: Setup rclone (plain-text config)
         uses: AnimMouse/setup-rclone@v1
         with:
           rclone_config: ${{ secrets.RCLONE_CONFIG }}
           disable_base64: true
 
-      - name: 上传 Downloads/ 到 od:lil vids
+      - name: Upload Downloads/ to od:lil vids
         run: |
           SRC_DIR="BunkrDownloader/Downloads/"
           DEST_DIR="od:lil vids"
-
-          echo "📁 源目录 = $SRC_DIR"
-          echo "📁 目标目录 = $DEST_DIR"
-
           rclone copy "$SRC_DIR" "$DEST_DIR" \
             --transfers=32 \
             --checkers=32 \
@@ -51,4 +59,4 @@ jobs:
             --drive-chunk-size=256M \
             --onedrive-chunk-size=60M \
             --progress \
-            --stats=$RCLONE_STATS
+            --stats="${RCLONE_STATS}"
