@@ -55,7 +55,7 @@ jobs:
           rclone_config: ${{ secrets.RCLONE_CONFIG }}
           disable_base64: true
 
-      - name: Upload to od:
+      - name: "Upload to od:"
         env:
           DEST_SUBPATH: ${{ github.event.inputs.dest_path }}
         run: |
