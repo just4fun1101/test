@@ -1,81 +1,105 @@
-name: CyberdropBunkr-to-OneDrive
+name: Cyberdrop/Bunkr → OneDrive (rclone)
 
 on:
   workflow_dispatch:
     inputs:
-      source_url:
-        description: 'Album/File URL to download'
+      urls:
+        description: "One or more URLs (space or newline separated) from cyberdrop.me or bunkrr.*"
         required: true
       dest_path:
-        description: 'Destination path under od: (e.g., "lil vids")'
+        description: "Destination path on OneDrive remote (e.g. od:/incoming/album)"
+        required: true
+        default: "od:/incoming"
+      extensions:
+        description: "Comma-separated extensions to download (optional, e.g. mp4,jpg,png)"
         required: false
-        default: 'lil vids'
+        default: ""
+      retries:
+        description: "Retries if connection fails"
+        required: false
+        default: "3"
+      check_server:
+        description: "Check server status before downloading (true/false)"
+        required: false
+        default: "false"
 
 jobs:
-  download_and_upload:
+  run:
     runs-on: ubuntu-latest
-
+    timeout-minutes: 360
+    concurrency:
+      group: cyberbunkr-${{ github.ref }}
+      cancel-in-progress: false
     env:
+      OUT_DIR: ${{ github.workspace }}/downloads
       RCLONE_STATS: 1s
 
     steps:
-      - name: Checkout
+      - name: Checkout (empty repo OK)
         uses: actions/checkout@v4
 
-      - name: Install system dependencies
+      - name: Fetch CyberdropBunkrDownloader
         run: |
-          sudo apt-get update
-          sudo apt-get install -y python3-venv git
+          set -euxo pipefail
+          git clone --depth=1 https://github.com/PaaaulZ/CyberdropBunkrDownloader downloader
 
-      - name: Clone CyberdropBunkrDownloader and download
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
         run: |
-          set -e
-          git clone https://github.com/PaaaulZ/CyberdropBunkrDownloader.git
-          cd CyberdropBunkrDownloader
-
-          python3 -m venv venv
-          source venv/bin/activate
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r downloader/requirements.txt
 
-          # Create a known output folder; update if the project uses a different flag/path.
-          mkdir -p Downloads
+      - name: Prepare URL list
+        run: |
+          mkdir -p "$OUT_DIR"
+          # Write URLs to a file (handles spaces/newlines)
+          cat << 'EOF' > urls.txt
+${{ inputs.urls }}
+EOF
+          echo "Will download to: $OUT_DIR"
+          echo "URLs:"
+          cat urls.txt
 
-          INPUT_URL="${{ github.event.inputs.source_url }}"
-          echo "Downloading from: $INPUT_URL"
+      - name: Download from Cyberdrop/Bunkr
+        run: |
+          set -euxo pipefail
+          ARGS="-f urls.txt -p \"$OUT_DIR\" -r ${{ inputs.retries }}"
+          if [ -n "${{ inputs.extensions }}" ]; then
+            ARGS="$ARGS -e \"${{ inputs.extensions }}\""
+          fi
+          if [ "${{ inputs.check_server }}" = "true" ]; then
+            ARGS="$ARGS -css"
+          fi
+          eval python3 downloader/dump.py $ARGS
 
-          # TODO: Replace the command below with the correct CLI for CyberdropBunkrDownloader.
-          # Example pattern (adjust to the repo's README):
-          # python3 dump.py "$INPUT_URL" --output "Downloads" --disable-ui
-          python3 dump.py "$INPUT_URL"
-
-      - name: Setup rclone (plain-text config from secret)
+      - name: Setup rclone
         uses: AnimMouse/setup-rclone@v1
         with:
           rclone_config: ${{ secrets.RCLONE_CONFIG }}
-          disable_base64: true
 
-      - name: "Upload to od:"
+      - name: Upload to OneDrive (remote: od)
         env:
-          DEST_SUBPATH: ${{ github.event.inputs.dest_path }}
+          # If your rclone.conf is password-protected, add this secret too
+          RCLONE_CONFIG_PASS: ${{ secrets.RCLONE_CONFIG_PASS }}
         run: |
-          SRC_DIR="CyberdropBunkrDownloader/Downloads"
-          DEST_DIR="od:${DEST_SUBPATH}"
-
-          echo "Source: $SRC_DIR"
-          echo "Destination: $DEST_DIR"
-
-          rclone copy "$SRC_DIR" "$DEST_DIR" \
-            --transfers=32 \
-            --checkers=32 \
+          set -euxo pipefail
+          SRC_DIR="$OUT_DIR/"
+          DEST="${{ inputs.dest_path }}"
+          echo "Uploading from $SRC_DIR to $DEST"
+          rclone copy "$SRC_DIR" "$DEST" \
+            --transfers=8 \
+            --checkers=16 \
+            --onedrive-chunk-size=32M \
             --fast-list \
-            --multi-thread-streams=8 \
-            --multi-thread-cutoff=16M \
-            --buffer-size=1G \
-            --drive-chunk-size=256M \
-            --onedrive-chunk-size=60M \
-            --progress \
-            --stats=$RCLONE_STATS
-        # If your rclone.conf is protected with a password, uncomment:
-        # env:
-        #   RCLONE_CONFIG_PASS: ${{ secrets.RCLONE_CONFIG_PASS }}
+            --stats=$RCLONE_STATS \
+            --progress
+
+      - name: List downloaded files
+        if: always()
+        run: |
+          echo "Downloaded tree:"
+          find "$OUT_DIR" -maxdepth 2 -type f | sed -n '1,200p'
