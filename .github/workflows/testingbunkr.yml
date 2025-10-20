@@ -53,17 +53,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r downloader/requirements.txt
 
+
       - name: Prepare URL list
+        env:
+          URLS: ${{ inputs.urls }}
         run: |
           mkdir -p "$OUT_DIR"
           # Write URLs to a file (handles spaces/newlines)
-          cat << 'EOF' > urls.txt
-${{ inputs.urls }}
-EOF
+          printf '%s\n' "$URLS" > urls.txt
           echo "Will download to: $OUT_DIR"
           echo "URLs:"
           cat urls.txt
-
       - name: Download from Cyberdrop/Bunkr
         run: |
           set -euxo pipefail
