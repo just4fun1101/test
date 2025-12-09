@@ -48,4 +48,4 @@ jobs:
             --retries=3 \
             --retries-sleep=10s \
             --progress \
-            --stats=1s
+            --stats=15s
