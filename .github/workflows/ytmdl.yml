@@ -25,21 +25,29 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
+      - name: Install Python and yt-dlp
+        run: |
+          python3 --version || true
+          python3 -m pip install --upgrade pip
+          python3 -m pip install yt-dlp
 
       - name: Restore cookies.txt from secret
         run: |
           echo "${{ secrets.YTDLP_COOKIES_B64 }}" | base64 --decode > cookies.txt
 
-      - name: Run downloader script (with cookies)
+      - name: Run yt-dlp (with cookies)
         env:
           TERM: xterm-256color
         run: |
-          source venv/bin/activate
-          python3 dl_music.py "${{ github.event.inputs.music_url }}" cookies.txt
+          mkdir -p Downloads
+          yt-dlp \
+            -x --audio-format opus \
+            --embed-metadata \
+            --embed-thumbnail \
+            --parse-metadata "playlist_index:%(track_number)s" \
+            --cookies cookies.txt \
+            -o "Downloads/%(playlist_title)s/%(playlist_index)02d - %(artist)s - %(title)s.%(ext)s" \
+            "${{ github.event.inputs.music_url }}"
 
       - name: Setup rclone (plain-text config)
         uses: AnimMouse/setup-rclone@v1
@@ -47,7 +55,7 @@ jobs:
           rclone_config: ${{ secrets.RCLONE_CONFIG }}
           disable_base64: true
 
-      - name: "Upload Downloads/ to pik"
+      - name: Upload Downloads/ to pik
         run: |
           SRC_DIR="Downloads/"
           DEST_DIR="pik:${{ github.event.inputs.remote_path }}"
