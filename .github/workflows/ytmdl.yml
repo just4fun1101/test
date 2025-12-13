@@ -1,0 +1,67 @@
+name: Music to Rclone (macOS)
+
+on:
+  workflow_dispatch:
+    inputs:
+      music_url:
+        description: "Playlist or audio URL (only use if you have download rights)"
+        required: true
+        type: string
+
+jobs:
+  music_to_rclone:
+    runs-on: macos-latest
+    env:
+      TERM: xterm-256color
+      RCLONE_STATS: 1s
+      HOMEBREW_NO_COLOR: 1
+      HOMEBREW_NO_AUTO_UPDATE: 1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install Python dependencies
+        run: |
+          python3 -m venv venv
+          source venv/bin/activate
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r requirements.txt
+
+      - name: Restore cookies.txt from secret
+        run: |
+          echo "${{ secrets.YTDLP_COOKIES_B64 }}" | base64 --decode > cookies.txt
+
+      - name: Run downloader script (with cookies)
+        env:
+          TERM: xterm-256color
+        run: |
+          source venv/bin/activate
+          python3 dl_music.py "${{ github.event.inputs.music_url }}" cookies.txt
+
+      - name: Setup rclone (plain-text config)
+        uses: AnimMouse/setup-rclone@v1
+        with:
+          rclone_config: ${{ secrets.RCLONE_CONFIG }}
+          disable_base64: true
+
+      - name: Upload Downloads/ to pik:
+        run: |
+          SRC_DIR="Downloads/"
+          DEST_DIR="pik:"
+          rclone copy "$SRC_DIR" "$DEST_DIR" \
+            --transfers=32 \
+            --checkers=32 \
+            --fast-list \
+            --multi-thread-streams=8 \
+            --multi-thread-cutoff=16M \
+            --buffer-size=1G \
+            --drive-chunk-size=256M \
+            --onedrive-chunk-size=60M \
+            --stats-one-line \
+            --stats="${RCLONE_STATS}"
