@@ -25,10 +25,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install yt-dlp (via Homebrew)
+      - name: Install yt-dlp and ffmpeg (via Homebrew)
         run: |
-          brew install yt-dlp || true
+          brew install yt-dlp ffmpeg
           yt-dlp --version
+          ffmpeg -version
 
       - name: Restore cookies.txt from secret
         run: |
