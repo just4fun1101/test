@@ -50,7 +50,7 @@ jobs:
           rclone_config: ${{ secrets.RCLONE_CONFIG }}
           disable_base64: true
 
-      - name: Upload Downloads/ to pik:
+      - name: "Upload Downloads/ to pik:"
         run: |
           SRC_DIR="Downloads/"
           DEST_DIR="pik:"
