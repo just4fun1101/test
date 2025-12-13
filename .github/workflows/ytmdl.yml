@@ -30,13 +30,6 @@ jobs:
         with:
           python-version: '3.x'
 
-      - name: Install Python dependencies
-        run: |
-          python3 -m venv venv
-          source venv/bin/activate
-          python3 -m pip install --upgrade pip
-          python3 -m pip install -r requirements.txt
-
       - name: Restore cookies.txt from secret
         run: |
           echo "${{ secrets.YTDLP_COOKIES_B64 }}" | base64 --decode > cookies.txt
