@@ -7,6 +7,10 @@ on:
         description: "Playlist or audio URL (only use if you have download rights)"
         required: true
         type: string
+      remote_path:
+        description: "Path inside pik: remote (e.g. 'music/album1' or '.' for root)"
+        required: true
+        type: string
 
 jobs:
   music_to_rclone:
@@ -50,10 +54,10 @@ jobs:
           rclone_config: ${{ secrets.RCLONE_CONFIG }}
           disable_base64: true
 
-      - name: "Upload Downloads/ to pik:"
+      - name: "Upload Downloads/ to pik"
         run: |
           SRC_DIR="Downloads/"
-          DEST_DIR="pik:"
+          DEST_DIR="pik:${{ github.event.inputs.remote_path }}"
           rclone copy "$SRC_DIR" "$DEST_DIR" \
             --transfers=32 \
             --checkers=32 \
