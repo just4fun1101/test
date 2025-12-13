@@ -25,11 +25,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Python and yt-dlp
+      - name: Install yt-dlp (via Homebrew)
         run: |
-          python3 --version || true
-          python3 -m pip install --upgrade pip
-          python3 -m pip install yt-dlp
+          brew install yt-dlp || true
+          yt-dlp --version
 
       - name: Restore cookies.txt from secret
         run: |
