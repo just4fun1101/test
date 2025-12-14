@@ -8,7 +8,7 @@ DOWNLOAD_ROOT = Path("Downloads")
 
 YTDLP_BASE_ARGS = [
     "-x",
-    "--audio-format", "opus",
+    "--audio-format", "141",
     "--embed-metadata",
     "--embed-thumbnail",
     "--parse-metadata", "playlist_index:%(track_number)s",
