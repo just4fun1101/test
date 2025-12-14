@@ -41,7 +41,7 @@ jobs:
         run: |
           mkdir -p Downloads
           yt-dlp \
-            --f 141 --audio-format m4a \
+            -f 141 --audio-format m4a \
             --embed-metadata \
             --embed-thumbnail \
             --parse-metadata "playlist_index:%(track_number)s" \
